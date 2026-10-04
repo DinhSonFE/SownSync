@@ -43,6 +43,9 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  precision_.driftPpm=0.0;
  precision_.predictionErrorMs=0.0;
  precision_.packetRateHz=0.0;
+ errorSquareEma_=0.0;
+ precision_.errorRmsMs=0.0;
+ precision_.errorPeakMs=0.0;
 }
 
 bool ReaperSyncSource::start(){
@@ -90,11 +93,15 @@ SyncState ReaperSyncSource::getState()const{
 std::vector<Cue> ReaperSyncSource::markerCues()const{std::lock_guard l(mutex_);return markers_;}
 std::string ReaperSyncSource::projectName()const{std::lock_guard l(mutex_);return projectName_;}
 double ReaperSyncSource::packetAgeMs()const{std::lock_guard l(mutex_);updateHealthUnlocked(Clock::now());return precision_.packetAgeMs;}
-PrecisionStats ReaperSyncSource::precisionStats()const{std::lock_guard l(mutex_);updateHealthUnlocked(Clock::now());return precision_;}
+PrecisionStats ReaperSyncSource::precisionStats()const{std::lock_guard l(mutex_);auto now=Clock::now();updateHealthUnlocked(now);precision_.uptimeSec=std::chrono::duration<double>(now-startedAt_).count();return precision_;}
 
 void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::uint64_t freq,TimeNs pos,TransportState tr,Clock::time_point now){
  precision_.packets++;
- if(previousSequence_&&seq>previousSequence_+1)precision_.sequenceGaps+=seq-previousSequence_-1;
+ if(previousSequence_){
+  if(seq==previousSequence_){precision_.duplicatePackets++;return;}
+  if(seq<previousSequence_){precision_.outOfOrderPackets++;return;}
+  if(seq>previousSequence_+1)precision_.sequenceGaps+=seq-previousSequence_-1;
+ }
  if(previousArrival_!=Clock::time_point::min()){
   const double intervalMs=std::chrono::duration<double,std::milli>(now-previousArrival_).count();
   if(expectedIntervalMs_==0)expectedIntervalMs_=intervalMs;else expectedIntervalMs_=expectedIntervalMs_*0.95+intervalMs*0.05;
@@ -106,6 +113,9 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    const double rawErrorMs=(double)(pos-rawExpected)/1e6;
    precision_.predictionErrorMs=rawErrorMs;
    precision_.correctionMs=std::abs(rawErrorMs);
+   errorSquareEma_=errorSquareEma_*0.98+(rawErrorMs*rawErrorMs)*0.02;
+   precision_.errorRmsMs=std::sqrt(errorSquareEma_);
+   precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(rawErrorMs));
    const bool seek=std::abs(rawErrorMs)>150.0;
    if(seek){precision_.seekEvents++;precision_.hardSnaps++;clockRateScale_=1.0;driftPpmFiltered_=0.0;}
    else if(elapsedSec>0.002){
