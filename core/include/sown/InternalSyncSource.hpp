@@ -10,15 +10,19 @@ public:
     void stop() override;
     bool isConnected() const override;
     SyncState getState() const override;
+
     void play();
     void pause();
     void seek(TimeNs position);
+    void reset();
 private:
+    using Clock = std::chrono::steady_clock;
     mutable std::mutex mutex_;
-    bool running_{false};
+    bool connected_{false};
     TransportState transport_{TransportState::Stopped};
-    TimeNs anchorPosition_{0};
-    std::chrono::steady_clock::time_point anchorTime_{};
+    TimeNs basePosition_{0};
+    Clock::time_point anchor_{Clock::now()};
     std::uint64_t sequence_{0};
+    TimeNs positionUnlocked(Clock::time_point now) const;
 };
 }
