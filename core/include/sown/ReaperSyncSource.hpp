@@ -72,6 +72,8 @@ private:
     double driftPpmFiltered_{0.0};
     double errorSquareEma_{0.0};
     double sourceSlopeEma_{1.0};
+    std::uint64_t previousSenderQpc_{0};
+    std::uint64_t previousSenderQpcFreq_{0};
     int settlingPackets_{0};
     Clock::time_point startedAt_{Clock::now()};
     bool everConnected_{false};
