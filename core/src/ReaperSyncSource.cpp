@@ -45,6 +45,13 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  precision_.packetRateHz=0.0;
  errorSquareEma_=0.0;
  sourceSlopeEma_=1.0;
+ phaseBaselineMs_=0.0;
+ residualSquareEma_=0.0;
+ phaseLockSamples_=0;
+ phaseLocked_=false;
+ precision_.phaseBaselineMs=0.0;
+ precision_.residualErrorMs=0.0;
+ precision_.phaseLocked=false;
  previousSenderQpc_=0;
  previousSenderQpcFreq_=0;
  settlingPackets_=8;
@@ -126,12 +133,31 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    const double timelineSec=(double)(pos-previousPacketPosition_)/1e9/rate;
    const double phaseErrorMs=(timelineSec-senderSec)*1000.0;
    precision_.phaseErrorMs=phaseErrorMs;
-   precision_.predictionErrorMs=phaseErrorMs;
+
+   // Phase Lock learns the stable sampling offset between REAPER's play cursor
+   // and the sender monotonic timestamp. It is deliberately NOT a hard-coded
+   // compensation value. Only stable, non-seek samples are admitted.
+   if(std::abs(phaseErrorMs)<50.0){
+    if(phaseLockSamples_==0) phaseBaselineMs_=phaseErrorMs;
+    else {
+     const double learnAlpha=phaseLocked_?0.002:0.04;
+     phaseBaselineMs_ += (phaseErrorMs-phaseBaselineMs_)*learnAlpha;
+    }
+    ++phaseLockSamples_;
+    if(phaseLockSamples_>=64) phaseLocked_=true;
+   }
+   const double residualMs=phaseLocked_?(phaseErrorMs-phaseBaselineMs_):0.0;
+   precision_.phaseBaselineMs=phaseBaselineMs_;
+   precision_.residualErrorMs=residualMs;
+   precision_.phaseLocked=phaseLocked_;
+   precision_.predictionErrorMs=residualMs;
 
    const bool seek=std::abs(phaseErrorMs)>150.0;
    if(seek){
     precision_.seekEvents++;precision_.hardSnaps++;
     clockRateScale_=1.0;driftPpmFiltered_=0.0;sourceSlopeEma_=1.0;settlingPackets_=8;
+    phaseBaselineMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
+    precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;precision_.phaseLocked=false;
     errorSquareEma_=0.0;precision_.errorRmsMs=0.0;precision_.errorPeakMs=0.0;
    }else if(settlingPackets_>0){
     --settlingPackets_;
@@ -150,15 +176,18 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
     precision_.driftPpm=driftPpmFiltered_;
     clockRateScale_=std::clamp(sourceSlopeEma_,0.998,1.002);
 
-    errorSquareEma_=errorSquareEma_*0.98+(phaseErrorMs*phaseErrorMs)*0.02;
-    precision_.errorRmsMs=std::sqrt(errorSquareEma_);
-    precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(phaseErrorMs));
-    precision_.correctionMs=std::abs(phaseErrorMs);
-    if(std::abs(phaseErrorMs)>1.0)precision_.softCorrections++;
+    const double residualMs=phaseLocked_?(phaseErrorMs-phaseBaselineMs_):0.0;
+    residualSquareEma_=residualSquareEma_*0.98+(residualMs*residualMs)*0.02;
+    precision_.errorRmsMs=std::sqrt(residualSquareEma_);
+    precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(residualMs));
+    precision_.correctionMs=std::abs(residualMs);
+    if(phaseLocked_&&std::abs(residualMs)>1.0)precision_.softCorrections++;
    }
   }else if(previousTransport_!=tr){
    settlingPackets_=8;
-   precision_.phaseErrorMs=0.0;precision_.predictionErrorMs=0.0;precision_.correctionMs=0.0;
+   phaseBaselineMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
+   precision_.phaseErrorMs=0.0;precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;
+   precision_.phaseLocked=false;precision_.predictionErrorMs=0.0;precision_.correctionMs=0.0;
   }
  }
 #ifdef _WIN32
