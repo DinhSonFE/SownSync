@@ -54,3 +54,18 @@ The bridge sends only to localhost in v0.2. This is intentional: REAPER integrat
 ## v0.2.1 Precision Sync
 Protocol upgraded to v3. Replace BOTH SownCoreConsole.exe and reaper_sown_bridge.dll.
 Adds same-machine QPC one-way bridge latency, rolling avg/min/max/P95, inter-arrival jitter, sequence-gap detection, seek/discontinuity detection, and sync-quality classification. Position remains interpolated from the latest REAPER anchor using steady_clock; true seeks hard-snap on the next state packet.
+
+
+## v0.2.2 Clock Discipline + Sync Health Watchdog
+
+Adds a predictive local clock disciplined by REAPER packets instead of simply replacing the position on every packet.
+
+- Predicts timeline position between bridge packets using steady_clock.
+- Estimates source/local drift in ppm and applies a bounded rate correction (±2000 ppm).
+- Small errors are corrected smoothly; real seeks/discontinuities (>150 ms) hard-snap immediately.
+- Watchdog states: LOCKED (<100 ms), HOLDOVER (<350 ms), DEGRADED (<750 ms), LOST (>=750 ms).
+- HOLDOVER keeps prediction running through short packet stalls; LOST stops claiming lock.
+- Console exposes packet rate/age, prediction error, drift, hard snaps and soft corrections.
+
+### v0.2.2 live test
+Run REAPER normally, then test Play/Pause/Stop and several large seeks. For watchdog testing, close REAPER while Sown is running and observe LOCKED -> HOLDOVER -> DEGRADED -> LOST. Restart REAPER and confirm automatic recovery to LOCKED.
