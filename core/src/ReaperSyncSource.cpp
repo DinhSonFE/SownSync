@@ -139,9 +139,13 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    }else{
     // Frequency is estimated entirely in the sender clock domain.
     // Local packet arrival timing is used only for transport jitter/health.
+    // Reject timer quantisation/outliers. Estimate frequency only from packets whose
+    // timeline delta agrees reasonably with the sender monotonic interval.
     const double sampleSlope=timelineSec/senderSec;
-    const double boundedSlope=std::clamp(sampleSlope,0.995,1.005);
-    sourceSlopeEma_=sourceSlopeEma_*0.995+boundedSlope*0.005;
+    if(std::abs(phaseErrorMs)<5.0){
+     const double boundedSlope=std::clamp(sampleSlope,0.998,1.002);
+     sourceSlopeEma_=sourceSlopeEma_*0.999+boundedSlope*0.001;
+    }
     driftPpmFiltered_=std::clamp((sourceSlopeEma_-1.0)*1e6,-2000.0,2000.0);
     precision_.driftPpm=driftPpmFiltered_;
     clockRateScale_=std::clamp(sourceSlopeEma_,0.998,1.002);
