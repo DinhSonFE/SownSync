@@ -133,8 +133,26 @@ void ReaperSyncSource::receiveLoop(){
 void ReaperSyncSource::handlePacket(const char*d,int len){
  if(len<(int)sizeof(WireHeader))return;auto&h=*(const WireHeader*)d;if(!validHeader(h,len))return;auto now=Clock::now();std::lock_guard l(mutex_);
  if(h.type==1&&len>=(int)sizeof(StatePacket)){
-  auto&p=*(const StatePacket*)d;auto tr=p.transport==1?TransportState::Playing:(p.transport==2?TransportState::Paused:TransportState::Stopped);TimeNs pos=secondsToNs(std::max(0.0,p.positionSec));
-  const TimeNs predicted=predictedPositionUnlocked(now);const double errMs=(double)(pos-predicted)/1e6;
+  auto&p=*(const StatePacket*)d;
+  auto tr=p.transport==1?TransportState::Playing:(p.transport==2?TransportState::Paused:TransportState::Stopped);
+  TimeNs pos=secondsToNs(std::max(0.0,p.positionSec));
+
+  const bool timedOut = lastPacket_!=Clock::time_point::min() &&
+      now-lastPacket_>=std::chrono::milliseconds(750);
+  const bool reconnect = everConnected_ && (wasLost_ || timedOut);
+
+  if(reconnect){
+   ++precision_.reconnects;
+   resetEstimatorUnlocked();
+   anchorPosition_=pos;
+   anchorLocal_=now;
+   state_.transport=tr;
+   wasLost_=false;
+  }
+  everConnected_=true;
+
+  const TimeNs predicted=predictedPositionUnlocked(now);
+  const double errMs=reconnect?0.0:(double)(pos-predicted)/1e6;
   updatePrecision(p.sequence,p.senderQpc,p.senderQpcFreq,pos,tr,now);
   const bool discontinuity=(state_.transport==TransportState::Playing&&tr==TransportState::Playing&&std::abs(errMs)>150.0);
   if(discontinuity||state_.transport!=tr){anchorPosition_=pos;anchorLocal_=now;}
