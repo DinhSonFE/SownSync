@@ -29,6 +29,22 @@ const char* toString(SyncHealth h){switch(h){case SyncHealth::NoSignal:return "N
 ReaperSyncSource::ReaperSyncSource(unsigned short port):port_(port){state_.source=SyncSource::Reaper;state_.fps=25.0;latencyWindow_.reserve(512);}
 ReaperSyncSource::~ReaperSyncSource(){stop();}
 
+void ReaperSyncSource::resetEstimatorUnlocked(){
+ latencyWindow_.clear();
+ expectedIntervalMs_=0.0;
+ previousArrival_=Clock::time_point::min();
+ previousPacketPosition_=0;
+ previousSequence_=0;
+ clockRateScale_=1.0;
+ driftPpmFiltered_=0.0;
+ precision_.latencyMs=precision_.latencyMinMs=precision_.latencyMaxMs=precision_.latencyAvgMs=precision_.latencyP95Ms=0.0;
+ precision_.jitterMs=0.0;
+ precision_.correctionMs=0.0;
+ precision_.driftPpm=0.0;
+ precision_.predictionErrorMs=0.0;
+ precision_.packetRateHz=0.0;
+}
+
 bool ReaperSyncSource::start(){
 #ifdef _WIN32
  if(running_)return true;WSADATA w{};if(WSAStartup(MAKEWORD(2,2),&w)!=0)return false;SOCKET s=::socket(AF_INET,SOCK_DGRAM,IPPROTO_UDP);if(s==INVALID_SOCKET){WSACleanup();return false;}sockaddr_in a{};a.sin_family=AF_INET;a.sin_addr.s_addr=htonl(INADDR_LOOPBACK);a.sin_port=htons(port_);if(::bind(s,(sockaddr*)&a,sizeof(a))==SOCKET_ERROR){closesocket(s);WSACleanup();return false;}DWORD t=100;setsockopt(s,SOL_SOCKET,SO_RCVTIMEO,(const char*)&t,sizeof(t));socket_=(std::uintptr_t)s;running_=true;thread_=std::thread(&ReaperSyncSource::receiveLoop,this);return true;
@@ -44,13 +60,13 @@ void ReaperSyncSource::stop(){
 }
 
 void ReaperSyncSource::updateHealthUnlocked(Clock::time_point now) const {
- if(lastPacket_==Clock::time_point::min()){precision_.health=SyncHealth::NoSignal;precision_.quality="NO SIGNAL";precision_.packetAgeMs=-1;return;}
+ if(lastPacket_==Clock::time_point::min()){precision_.health=SyncHealth::NoSignal;precision_.quality="NO SIGNAL";precision_.clockMode="WAITING";precision_.packetAgeMs=-1;return;}
  const double age=std::chrono::duration<double,std::milli>(now-lastPacket_).count();precision_.packetAgeMs=age;
  if(age<100.0)precision_.health=SyncHealth::Locked;
  else if(age<350.0)precision_.health=SyncHealth::Holdover;
  else if(age<750.0)precision_.health=SyncHealth::Degraded;
  else precision_.health=SyncHealth::Lost;
- if(precision_.health==SyncHealth::Lost){precision_.quality="NO SIGNAL";return;}
+ if(precision_.health==SyncHealth::Lost){precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";return;}\n if(precision_.health==SyncHealth::Holdover)precision_.clockMode="HOLDOVER";else if(precision_.health==SyncHealth::Degraded)precision_.clockMode="HOLDOVER";else precision_.clockMode="DISCIPLINED";
  const double score=precision_.latencyP95Ms+precision_.jitterMs*2.0+std::min(std::abs(precision_.driftPpm)/50.0,20.0);
  precision_.quality=score<5.0?"EXCELLENT":(score<15.0?"GOOD":(score<40.0?"FAIR":"UNSTABLE"));
 }
@@ -66,7 +82,7 @@ SyncState ReaperSyncSource::getState()const{
  std::lock_guard l(mutex_);auto now=Clock::now();updateHealthUnlocked(now);auto o=state_;
  o.connected=precision_.health!=SyncHealth::NoSignal&&precision_.health!=SyncHealth::Lost;
  o.locked=precision_.health==SyncHealth::Locked||precision_.health==SyncHealth::Holdover;
- if(o.connected)o.positionNs=predictedPositionUnlocked(now);else o.positionNs=anchorPosition_;
+ if(o.connected)o.positionNs=predictedPositionUnlocked(now);else o.positionNs=anchorPosition_;\n if(precision_.health==SyncHealth::Lost)wasLost_=true;
  return o;
 }
 std::vector<Cue> ReaperSyncSource::markerCues()const{std::lock_guard l(mutex_);return markers_;}
