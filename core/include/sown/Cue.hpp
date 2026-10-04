@@ -5,10 +5,10 @@
 
 namespace sown {
 struct Cue {
-    std::uint32_t id{0};
-    TimeNs timeNs{0};
-    std::string department{"ALL"};
+    std::uint32_t id{};
+    TimeNs timeNs{};
+    std::string department;
     std::string name;
-    TimeNs warningNs{0};
+    TimeNs warningNs{5 * kNsPerSecond};
 };
 }
