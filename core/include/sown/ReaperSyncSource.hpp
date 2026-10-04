@@ -21,7 +21,10 @@ struct PrecisionStats {
     double predictionErrorMs{0.0};
     double packetRateHz{0.0};
     double packetAgeMs{0.0};
-    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0}, hardSnaps{0}, softCorrections{0}, reconnects{0};
+    double errorRmsMs{0.0};
+    double errorPeakMs{0.0};
+    double uptimeSec{0.0};
+    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0}, hardSnaps{0}, softCorrections{0}, reconnects{0}, duplicatePackets{0}, outOfOrderPackets{0};
     SyncHealth health{SyncHealth::NoSignal};
     const char* quality{"NO SIGNAL"};
     const char* clockMode{"WAITING"};
@@ -66,6 +69,8 @@ private:
     mutable PrecisionStats precision_{};
     double clockRateScale_{1.0};
     double driftPpmFiltered_{0.0};
+    double errorSquareEma_{0.0};
+    Clock::time_point startedAt_{Clock::now()};
     bool everConnected_{false};
     mutable bool wasLost_{false};
     std::vector<Cue> markers_, markerBuild_;
