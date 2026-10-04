@@ -45,6 +45,8 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  precision_.packetRateHz=0.0;
  errorSquareEma_=0.0;
  sourceSlopeEma_=1.0;
+ previousSenderQpc_=0;
+ previousSenderQpcFreq_=0;
  settlingPackets_=8;
  precision_.phaseErrorMs=0.0;
  precision_.errorRmsMs=0.0;
@@ -107,18 +109,22 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
  }
 
  if(previousArrival_!=Clock::time_point::min()){
-  const double intervalSec=std::chrono::duration<double>(now-previousArrival_).count();
-  const double intervalMs=intervalSec*1000.0;
-  if(expectedIntervalMs_==0.0)expectedIntervalMs_=intervalMs;
-  else expectedIntervalMs_=expectedIntervalMs_*0.95+intervalMs*0.05;
+  const double arrivalSec=std::chrono::duration<double>(now-previousArrival_).count();
+  const double arrivalMs=arrivalSec*1000.0;
+  if(expectedIntervalMs_==0.0)expectedIntervalMs_=arrivalMs;
+  else expectedIntervalMs_=expectedIntervalMs_*0.95+arrivalMs*0.05;
   precision_.packetRateHz=expectedIntervalMs_>0.0?1000.0/expectedIntervalMs_:0.0;
-  const double dev=std::abs(intervalMs-expectedIntervalMs_);
-  precision_.jitterMs=precision_.jitterMs*0.9+dev*0.1;
+  precision_.jitterMs=precision_.jitterMs*0.9+std::abs(arrivalMs-expectedIntervalMs_)*0.1;
 
-  if(previousTransport_==TransportState::Playing&&tr==TransportState::Playing&&intervalSec>0.002){
+  double senderSec=0.0;
+  const bool senderClockValid=qpc>previousSenderQpc_ && freq>0 && previousSenderQpc_>0 &&
+      previousSenderQpcFreq_==freq;
+  if(senderClockValid)senderSec=(double)(qpc-previousSenderQpc_)/(double)freq;
+
+  if(previousTransport_==TransportState::Playing&&tr==TransportState::Playing&&senderClockValid&&senderSec>0.002){
    const double rate=state_.playbackRate>0.0?state_.playbackRate:1.0;
-   const double sourceDeltaSec=(double)(pos-previousPacketPosition_)/1e9/rate;
-   const double phaseErrorMs=(sourceDeltaSec-intervalSec)*1000.0;
+   const double timelineSec=(double)(pos-previousPacketPosition_)/1e9/rate;
+   const double phaseErrorMs=(timelineSec-senderSec)*1000.0;
    precision_.phaseErrorMs=phaseErrorMs;
    precision_.predictionErrorMs=phaseErrorMs;
 
@@ -131,8 +137,9 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
     --settlingPackets_;
     precision_.correctionMs=0.0;
    }else{
-    // Source frequency comes from timeline slope. Arrival jitter is treated only as noise.
-    const double sampleSlope=sourceDeltaSec/intervalSec;
+    // Frequency is estimated entirely in the sender clock domain.
+    // Local packet arrival timing is used only for transport jitter/health.
+    const double sampleSlope=timelineSec/senderSec;
     const double boundedSlope=std::clamp(sampleSlope,0.995,1.005);
     sourceSlopeEma_=sourceSlopeEma_*0.995+boundedSlope*0.005;
     driftPpmFiltered_=std::clamp((sourceSlopeEma_-1.0)*1e6,-2000.0,2000.0);
@@ -145,11 +152,9 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
     precision_.correctionMs=std::abs(phaseErrorMs);
     if(std::abs(phaseErrorMs)>1.0)precision_.softCorrections++;
    }
-  }else{
+  }else if(previousTransport_!=tr){
    settlingPackets_=8;
-   precision_.phaseErrorMs=0.0;
-   precision_.predictionErrorMs=0.0;
-   precision_.correctionMs=0.0;
+   precision_.phaseErrorMs=0.0;precision_.predictionErrorMs=0.0;precision_.correctionMs=0.0;
   }
  }
 #ifdef _WIN32
@@ -166,6 +171,7 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
  }
 #endif
  previousSequence_=seq;previousArrival_=now;previousPacketPosition_=pos;previousTransport_=tr;
+ previousSenderQpc_=qpc;previousSenderQpcFreq_=freq;
 }
 
 void ReaperSyncSource::receiveLoop(){
