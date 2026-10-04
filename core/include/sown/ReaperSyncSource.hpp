@@ -67,7 +67,7 @@ private:
     double clockRateScale_{1.0};
     double driftPpmFiltered_{0.0};
     bool everConnected_{false};
-    bool wasLost_{false};
+    mutable bool wasLost_{false};
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
