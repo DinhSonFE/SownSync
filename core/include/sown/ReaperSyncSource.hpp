@@ -1,61 +1,62 @@
 #pragma once
-#include "Cue.hpp"
 #include "ISyncSource.hpp"
-#include <atomic>
+#include "Cue.hpp"
 #include <chrono>
-#include <cstdint>
-#include <deque>
 #include <mutex>
+#include <string>
 #include <thread>
 #include <vector>
+#include <atomic>
 
 namespace sown {
-enum class SyncQuality { NoSignal, Excellent, Good, Unstable };
-
 struct PrecisionStats {
-    SyncQuality quality{SyncQuality::NoSignal};
-    double latencyNowMs{0.0};
-    double latencyAvgMs{0.0};
-    double latencyMinMs{0.0};
-    double latencyMaxMs{0.0};
-    double latencyP95Ms{0.0};
+    double latencyMs{0.0}, latencyMinMs{0.0}, latencyMaxMs{0.0}, latencyAvgMs{0.0}, latencyP95Ms{0.0};
     double jitterMs{0.0};
     double correctionMs{0.0};
-    std::uint64_t sequenceGaps{0};
-    std::uint64_t seekEvents{0};
+    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0};
+    const char* quality{"NO SIGNAL"};
 };
 
 class ReaperSyncSource final : public ISyncSource {
 public:
-    ReaperSyncSource();
+    explicit ReaperSyncSource(unsigned short port = 19101);
     ~ReaperSyncSource() override;
     bool start() override;
     void stop() override;
     bool isConnected() const override;
     SyncState getState() const override;
-    std::vector<Cue> markers() const;
+    std::vector<Cue> markerCues() const;
+    std::string projectName() const;
     double packetAgeMs() const;
-    std::uint64_t packetCount() const;
     PrecisionStats precisionStats() const;
+    std::uint64_t packetsReceived() const { return packetsReceived_.load(); }
 private:
+    using Clock = std::chrono::steady_clock;
     void receiveLoop();
-    mutable std::mutex mutex_;
+    void handlePacket(const char* data, int len);
+    void updatePrecision(std::uint64_t sequence, std::uint64_t senderQpc, std::uint64_t senderQpcFreq,
+                         TimeNs newPosition, TransportState newTransport, Clock::time_point now);
+    unsigned short port_;
     std::atomic<bool> running_{false};
     std::thread thread_;
-    std::uintptr_t socket_{~std::uintptr_t{0}};
+    mutable std::mutex mutex_;
     SyncState state_{};
-    std::vector<Cue> markers_;
-    std::chrono::steady_clock::time_point lastPacket_{};
-    std::chrono::steady_clock::time_point localAnchor_{};
-    TimeNs remoteAnchorNs_{0};
-    std::uint64_t packetCount_{0};
-    std::uint64_t lastWireSequence_{0};
-    bool haveSequence_{false};
-    std::deque<double> latencySamples_;
-    std::deque<double> intervalSamples_;
-    double lastArrivalQpcMs_{0.0};
-    double correctionMs_{0.0};
-    std::uint64_t sequenceGaps_{0};
-    std::uint64_t seekEvents_{0};
+    TimeNs anchorPosition_{0};
+    Clock::time_point anchorLocal_{Clock::now()};
+    Clock::time_point lastPacket_{Clock::time_point::min()};
+    Clock::time_point previousArrival_{Clock::time_point::min()};
+    TimeNs previousPacketPosition_{0};
+    TransportState previousTransport_{TransportState::Stopped};
+    std::uint64_t previousSequence_{0};
+    std::vector<double> latencyWindow_;
+    double expectedIntervalMs_{0.0};
+    PrecisionStats precision_{};
+    std::vector<Cue> markers_, markerBuild_;
+    std::uint32_t markerGeneration_{0};
+    std::string projectName_;
+    std::atomic<std::uint64_t> packetsReceived_{0};
+#ifdef _WIN32
+    std::uintptr_t socket_{~std::uintptr_t{0}};
+#endif
 };
 }
