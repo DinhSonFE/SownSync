@@ -6,8 +6,7 @@ namespace sown {
 class SyncEngine {
 public:
     explicit SyncEngine(std::shared_ptr<ISyncSource> source);
-    bool start();
-    void stop();
+    void setSource(std::shared_ptr<ISyncSource> source);
     SyncState state() const;
 private:
     std::shared_ptr<ISyncSource> source_;
