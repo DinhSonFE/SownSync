@@ -1,19 +1,28 @@
 #pragma once
 #include "ISyncSource.hpp"
 #include "Cue.hpp"
+#include <atomic>
 #include <chrono>
+#include <cstdint>
 #include <mutex>
 #include <string>
 #include <thread>
 #include <vector>
-#include <atomic>
 
 namespace sown {
+enum class SyncHealth { NoSignal, Locked, Holdover, Degraded, Lost };
+const char* toString(SyncHealth health);
+
 struct PrecisionStats {
     double latencyMs{0.0}, latencyMinMs{0.0}, latencyMaxMs{0.0}, latencyAvgMs{0.0}, latencyP95Ms{0.0};
     double jitterMs{0.0};
     double correctionMs{0.0};
-    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0};
+    double driftPpm{0.0};
+    double predictionErrorMs{0.0};
+    double packetRateHz{0.0};
+    double packetAgeMs{0.0};
+    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0}, hardSnaps{0}, softCorrections{0};
+    SyncHealth health{SyncHealth::NoSignal};
     const char* quality{"NO SIGNAL"};
 };
 
@@ -36,6 +45,8 @@ private:
     void handlePacket(const char* data, int len);
     void updatePrecision(std::uint64_t sequence, std::uint64_t senderQpc, std::uint64_t senderQpcFreq,
                          TimeNs newPosition, TransportState newTransport, Clock::time_point now);
+    void updateHealthUnlocked(Clock::time_point now) const;
+    TimeNs predictedPositionUnlocked(Clock::time_point now) const;
     unsigned short port_;
     std::atomic<bool> running_{false};
     std::thread thread_;
@@ -50,7 +61,9 @@ private:
     std::uint64_t previousSequence_{0};
     std::vector<double> latencyWindow_;
     double expectedIntervalMs_{0.0};
-    PrecisionStats precision_{};
+    mutable PrecisionStats precision_{};
+    double clockRateScale_{1.0};
+    double driftPpmFiltered_{0.0};
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
