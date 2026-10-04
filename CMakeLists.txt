@@ -1,35 +1,31 @@
 cmake_minimum_required(VERSION 3.20)
 project(SownSyncCore VERSION 0.2.1 LANGUAGES CXX)
-
 set(CMAKE_CXX_STANDARD 20)
 set(CMAKE_CXX_STANDARD_REQUIRED ON)
 set(CMAKE_CXX_EXTENSIONS OFF)
-
-add_library(sowncore
-    core/src/Time.cpp
-    core/src/CueEngine.cpp
-    core/src/SyncEngine.cpp
-    core/src/InternalSyncSource.cpp
-    core/src/ReaperSyncSource.cpp
-)
-
-target_include_directories(sowncore PUBLIC core/include)
-
-if(WIN32)
-    target_link_libraries(sowncore PRIVATE ws2_32)
+add_library(sown_core core/src/Time.cpp core/src/InternalSyncSource.cpp core/src/CueEngine.cpp core/src/SyncEngine.cpp core/src/ReaperSyncSource.cpp)
+target_include_directories(sown_core PUBLIC core/include)
+if(MSVC)
+  target_compile_options(sown_core PRIVATE /W4 /permissive-)
+else()
+  target_compile_options(sown_core PRIVATE -Wall -Wextra -Wpedantic)
 endif()
-
+if(WIN32)
+  target_link_libraries(sown_core PUBLIC ws2_32)
+endif()
 add_executable(SownCoreConsole apps/console/main.cpp)
-target_link_libraries(SownCoreConsole PRIVATE sowncore)
-
+target_link_libraries(SownCoreConsole PRIVATE sown_core)
 if(WIN32)
-    add_library(reaper_sown_bridge SHARED reaper_extension/reaper_sown_bridge.cpp)
-    target_compile_definitions(reaper_sown_bridge PRIVATE WIN32_LEAN_AND_MEAN NOMINMAX)
-    target_link_libraries(reaper_sown_bridge PRIVATE ws2_32)
-    set_target_properties(reaper_sown_bridge PROPERTIES PREFIX "")
+  add_library(reaper_sown_bridge SHARED reaper_extension/reaper_sown_bridge.cpp)
+  target_link_libraries(reaper_sown_bridge PRIVATE ws2_32)
+  set_target_properties(reaper_sown_bridge PROPERTIES PREFIX "" OUTPUT_NAME "reaper_sown_bridge")
+  if(MSVC)
+    target_compile_options(reaper_sown_bridge PRIVATE /W4 /permissive-)
+  endif()
 endif()
-
-enable_testing()
-add_executable(SownCoreTests tests/core_tests.cpp)
-target_link_libraries(SownCoreTests PRIVATE sowncore)
-add_test(NAME SownCoreTests COMMAND SownCoreTests)
+include(CTest)
+if(BUILD_TESTING)
+ add_executable(SownCoreTests tests/core_tests.cpp)
+ target_link_libraries(SownCoreTests PRIVATE sown_core)
+ add_test(NAME SownCoreTests COMMAND SownCoreTests)
+endif()
