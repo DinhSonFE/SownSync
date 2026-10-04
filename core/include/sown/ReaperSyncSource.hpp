@@ -21,6 +21,7 @@ struct PrecisionStats {
     double predictionErrorMs{0.0};
     double packetRateHz{0.0};
     double packetAgeMs{0.0};
+    double phaseErrorMs{0.0};
     double errorRmsMs{0.0};
     double errorPeakMs{0.0};
     double uptimeSec{0.0};
@@ -70,6 +71,8 @@ private:
     double clockRateScale_{1.0};
     double driftPpmFiltered_{0.0};
     double errorSquareEma_{0.0};
+    double sourceSlopeEma_{1.0};
+    int settlingPackets_{0};
     Clock::time_point startedAt_{Clock::now()};
     bool everConnected_{false};
     mutable bool wasLost_{false};
