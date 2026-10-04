@@ -44,6 +44,9 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  precision_.predictionErrorMs=0.0;
  precision_.packetRateHz=0.0;
  errorSquareEma_=0.0;
+ sourceSlopeEma_=1.0;
+ settlingPackets_=8;
+ precision_.phaseErrorMs=0.0;
  precision_.errorRmsMs=0.0;
  precision_.errorPeakMs=0.0;
 }
@@ -102,34 +105,65 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
   if(seq<previousSequence_){precision_.outOfOrderPackets++;return;}
   if(seq>previousSequence_+1)precision_.sequenceGaps+=seq-previousSequence_-1;
  }
+
  if(previousArrival_!=Clock::time_point::min()){
-  const double intervalMs=std::chrono::duration<double,std::milli>(now-previousArrival_).count();
-  if(expectedIntervalMs_==0)expectedIntervalMs_=intervalMs;else expectedIntervalMs_=expectedIntervalMs_*0.95+intervalMs*0.05;
-  precision_.packetRateHz=expectedIntervalMs_>0?1000.0/expectedIntervalMs_:0;
-  const double dev=std::abs(intervalMs-expectedIntervalMs_);precision_.jitterMs=precision_.jitterMs*0.9+dev*0.1;
-  if(previousTransport_==TransportState::Playing&&tr==TransportState::Playing){
-   const double elapsedSec=std::chrono::duration<double>(now-previousArrival_).count();
-   const TimeNs rawExpected=previousPacketPosition_+secondsToNs(elapsedSec*state_.playbackRate);
-   const double rawErrorMs=(double)(pos-rawExpected)/1e6;
-   precision_.predictionErrorMs=rawErrorMs;
-   precision_.correctionMs=std::abs(rawErrorMs);
-   errorSquareEma_=errorSquareEma_*0.98+(rawErrorMs*rawErrorMs)*0.02;
-   precision_.errorRmsMs=std::sqrt(errorSquareEma_);
-   precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(rawErrorMs));
-   const bool seek=std::abs(rawErrorMs)>150.0;
-   if(seek){precision_.seekEvents++;precision_.hardSnaps++;clockRateScale_=1.0;driftPpmFiltered_=0.0;}
-   else if(elapsedSec>0.002){
-    const double measuredPpm=((double)(pos-previousPacketPosition_)/(double)secondsToNs(elapsedSec*state_.playbackRate)-1.0)*1e6;
-    const double clamped=std::clamp(measuredPpm,-2000.0,2000.0);
-    driftPpmFiltered_=driftPpmFiltered_*0.98+clamped*0.02;
+  const double intervalSec=std::chrono::duration<double>(now-previousArrival_).count();
+  const double intervalMs=intervalSec*1000.0;
+  if(expectedIntervalMs_==0.0)expectedIntervalMs_=intervalMs;
+  else expectedIntervalMs_=expectedIntervalMs_*0.95+intervalMs*0.05;
+  precision_.packetRateHz=expectedIntervalMs_>0.0?1000.0/expectedIntervalMs_:0.0;
+  const double dev=std::abs(intervalMs-expectedIntervalMs_);
+  precision_.jitterMs=precision_.jitterMs*0.9+dev*0.1;
+
+  if(previousTransport_==TransportState::Playing&&tr==TransportState::Playing&&intervalSec>0.002){
+   const double rate=state_.playbackRate>0.0?state_.playbackRate:1.0;
+   const double sourceDeltaSec=(double)(pos-previousPacketPosition_)/1e9/rate;
+   const double phaseErrorMs=(sourceDeltaSec-intervalSec)*1000.0;
+   precision_.phaseErrorMs=phaseErrorMs;
+   precision_.predictionErrorMs=phaseErrorMs;
+
+   const bool seek=std::abs(phaseErrorMs)>150.0;
+   if(seek){
+    precision_.seekEvents++;precision_.hardSnaps++;
+    clockRateScale_=1.0;driftPpmFiltered_=0.0;sourceSlopeEma_=1.0;settlingPackets_=8;
+    errorSquareEma_=0.0;precision_.errorRmsMs=0.0;precision_.errorPeakMs=0.0;
+   }else if(settlingPackets_>0){
+    --settlingPackets_;
+    precision_.correctionMs=0.0;
+   }else{
+    // Source frequency comes from timeline slope. Arrival jitter is treated only as noise.
+    const double sampleSlope=sourceDeltaSec/intervalSec;
+    const double boundedSlope=std::clamp(sampleSlope,0.995,1.005);
+    sourceSlopeEma_=sourceSlopeEma_*0.995+boundedSlope*0.005;
+    driftPpmFiltered_=std::clamp((sourceSlopeEma_-1.0)*1e6,-2000.0,2000.0);
     precision_.driftPpm=driftPpmFiltered_;
-    clockRateScale_=std::clamp(1.0+driftPpmFiltered_/1e6,0.998,1.002);
-    if(std::abs(rawErrorMs)>1.0)precision_.softCorrections++;
+    clockRateScale_=std::clamp(sourceSlopeEma_,0.998,1.002);
+
+    errorSquareEma_=errorSquareEma_*0.98+(phaseErrorMs*phaseErrorMs)*0.02;
+    precision_.errorRmsMs=std::sqrt(errorSquareEma_);
+    precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(phaseErrorMs));
+    precision_.correctionMs=std::abs(phaseErrorMs);
+    if(std::abs(phaseErrorMs)>1.0)precision_.softCorrections++;
    }
+  }else{
+   settlingPackets_=8;
+   precision_.phaseErrorMs=0.0;
+   precision_.predictionErrorMs=0.0;
+   precision_.correctionMs=0.0;
   }
  }
 #ifdef _WIN32
- LARGE_INTEGER rq{};QueryPerformanceCounter(&rq);if(qpc&&freq&&rq.QuadPart>=(LONGLONG)qpc){double latency=(double)(rq.QuadPart-(LONGLONG)qpc)*1000.0/(double)freq;precision_.latencyMs=latency;latencyWindow_.push_back(latency);if(latencyWindow_.size()>512)latencyWindow_.erase(latencyWindow_.begin());auto mm=std::minmax_element(latencyWindow_.begin(),latencyWindow_.end());precision_.latencyMinMs=*mm.first;precision_.latencyMaxMs=*mm.second;precision_.latencyAvgMs=std::accumulate(latencyWindow_.begin(),latencyWindow_.end(),0.0)/latencyWindow_.size();auto tmp=latencyWindow_;std::sort(tmp.begin(),tmp.end());precision_.latencyP95Ms=tmp[(std::size_t)std::floor((tmp.size()-1)*0.95)];}
+ LARGE_INTEGER rq{};QueryPerformanceCounter(&rq);
+ if(qpc&&freq&&rq.QuadPart>=(LONGLONG)qpc){
+  double latency=(double)(rq.QuadPart-(LONGLONG)qpc)*1000.0/(double)freq;
+  precision_.latencyMs=latency;latencyWindow_.push_back(latency);
+  if(latencyWindow_.size()>512)latencyWindow_.erase(latencyWindow_.begin());
+  auto mm=std::minmax_element(latencyWindow_.begin(),latencyWindow_.end());
+  precision_.latencyMinMs=*mm.first;precision_.latencyMaxMs=*mm.second;
+  precision_.latencyAvgMs=std::accumulate(latencyWindow_.begin(),latencyWindow_.end(),0.0)/latencyWindow_.size();
+  auto tmp=latencyWindow_;std::sort(tmp.begin(),tmp.end());
+  precision_.latencyP95Ms=tmp[(std::size_t)std::floor((tmp.size()-1)*0.95)];
+ }
 #endif
  previousSequence_=seq;previousArrival_=now;previousPacketPosition_=pos;previousTransport_=tr;
 }
