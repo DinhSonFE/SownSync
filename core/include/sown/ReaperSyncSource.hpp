@@ -21,9 +21,10 @@ struct PrecisionStats {
     double predictionErrorMs{0.0};
     double packetRateHz{0.0};
     double packetAgeMs{0.0};
-    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0}, hardSnaps{0}, softCorrections{0};
+    std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0}, hardSnaps{0}, softCorrections{0}, reconnects{0};
     SyncHealth health{SyncHealth::NoSignal};
     const char* quality{"NO SIGNAL"};
+    const char* clockMode{"WAITING"};
 };
 
 class ReaperSyncSource final : public ISyncSource {
@@ -47,6 +48,7 @@ private:
                          TimeNs newPosition, TransportState newTransport, Clock::time_point now);
     void updateHealthUnlocked(Clock::time_point now) const;
     TimeNs predictedPositionUnlocked(Clock::time_point now) const;
+    void resetEstimatorUnlocked();
     unsigned short port_;
     std::atomic<bool> running_{false};
     std::thread thread_;
@@ -64,6 +66,8 @@ private:
     mutable PrecisionStats precision_{};
     double clockRateScale_{1.0};
     double driftPpmFiltered_{0.0};
+    bool everConnected_{false};
+    bool wasLost_{false};
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
