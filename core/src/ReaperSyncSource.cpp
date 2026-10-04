@@ -66,7 +66,8 @@ void ReaperSyncSource::updateHealthUnlocked(Clock::time_point now) const {
  else if(age<350.0)precision_.health=SyncHealth::Holdover;
  else if(age<750.0)precision_.health=SyncHealth::Degraded;
  else precision_.health=SyncHealth::Lost;
- if(precision_.health==SyncHealth::Lost){precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";return;}\n if(precision_.health==SyncHealth::Holdover)precision_.clockMode="HOLDOVER";else if(precision_.health==SyncHealth::Degraded)precision_.clockMode="HOLDOVER";else precision_.clockMode="DISCIPLINED";
+ if(precision_.health==SyncHealth::Lost){precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";return;}
+ if(precision_.health==SyncHealth::Holdover)precision_.clockMode="HOLDOVER";else if(precision_.health==SyncHealth::Degraded)precision_.clockMode="HOLDOVER";else precision_.clockMode="DISCIPLINED";
  const double score=precision_.latencyP95Ms+precision_.jitterMs*2.0+std::min(std::abs(precision_.driftPpm)/50.0,20.0);
  precision_.quality=score<5.0?"EXCELLENT":(score<15.0?"GOOD":(score<40.0?"FAIR":"UNSTABLE"));
 }
@@ -82,7 +83,8 @@ SyncState ReaperSyncSource::getState()const{
  std::lock_guard l(mutex_);auto now=Clock::now();updateHealthUnlocked(now);auto o=state_;
  o.connected=precision_.health!=SyncHealth::NoSignal&&precision_.health!=SyncHealth::Lost;
  o.locked=precision_.health==SyncHealth::Locked||precision_.health==SyncHealth::Holdover;
- if(o.connected)o.positionNs=predictedPositionUnlocked(now);else o.positionNs=anchorPosition_;\n if(precision_.health==SyncHealth::Lost)wasLost_=true;
+ if(o.connected)o.positionNs=predictedPositionUnlocked(now);else o.positionNs=anchorPosition_;
+ if(precision_.health==SyncHealth::Lost)wasLost_=true;
  return o;
 }
 std::vector<Cue> ReaperSyncSource::markerCues()const{std::lock_guard l(mutex_);return markers_;}
