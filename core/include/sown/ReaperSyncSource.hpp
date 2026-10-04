@@ -22,6 +22,9 @@ struct PrecisionStats {
     double packetRateHz{0.0};
     double packetAgeMs{0.0};
     double phaseErrorMs{0.0};
+    double phaseBaselineMs{0.0};
+    double residualErrorMs{0.0};
+    bool phaseLocked{false};
     double errorRmsMs{0.0};
     double errorPeakMs{0.0};
     double uptimeSec{0.0};
@@ -72,6 +75,10 @@ private:
     double driftPpmFiltered_{0.0};
     double errorSquareEma_{0.0};
     double sourceSlopeEma_{1.0};
+    double phaseBaselineMs_{0.0};
+    double residualSquareEma_{0.0};
+    int phaseLockSamples_{0};
+    bool phaseLocked_{false};
     std::uint64_t previousSenderQpc_{0};
     std::uint64_t previousSenderQpcFreq_{0};
     int settlingPackets_{0};
