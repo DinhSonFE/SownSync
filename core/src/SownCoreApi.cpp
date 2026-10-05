@@ -37,5 +37,6 @@ double sown_get_reaper_tempo(void){std::lock_guard<std::mutex>lk(g);return reape
 int64_t sown_get_reaper_project_length_ns(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->projectLengthNs():0;}
 int64_t sown_get_reaper_edit_cursor_ns(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->editCursorNs():0;}
 uint32_t sown_get_reaper_project_revision(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->projectRevision():0;}
-const char* sown_version(void){return "0.7.0";}
+int sown_get_reaper_waveform(float*out,int capacity,int64_t*start_ns,int64_t*step_ns){std::lock_guard<std::mutex>lk(g);if(!reaper||!out||capacity<=0)return 0;auto p=reaper->waveformPeaks();const int n=std::min<int>(capacity,(int)p.size());for(int i=0;i<n;++i)out[i]=p[i];if(start_ns)*start_ns=reaper->waveformStartNs();if(step_ns)*step_ns=reaper->waveformStepNs();return n;}
+const char* sown_version(void){return "0.7.1";}
 }
