@@ -3,6 +3,8 @@
 #include <algorithm>
 #include <cmath>
 #include <cstring>
+#include <filesystem>
+#include <iomanip>
 #include <numeric>
 #ifdef _WIN32
 #ifndef NOMINMAX
@@ -29,6 +31,31 @@ const char* toString(PhaseAcquisitionState s){switch(s){case PhaseAcquisitionSta
 
 ReaperSyncSource::ReaperSyncSource(unsigned short port):port_(port){state_.source=SyncSource::Reaper;state_.fps=25.0;latencyWindow_.reserve(512);phaseLearningWindow_.reserve(96);}
 ReaperSyncSource::~ReaperSyncSource(){stop();}
+
+void ReaperSyncSource::logPhaseSampleUnlocked(std::uint64_t sequence,std::uint64_t senderQpc,
+ double senderDeltaMs,TimeNs positionNs,double positionDeltaMs,double rawPhaseMs,
+ double baselineMs,double residualMs){
+ if(!phaseLog_.is_open()){
+  try{
+   const auto dir=std::filesystem::current_path()/"logs";
+   std::filesystem::create_directories(dir);
+   phaseLogPath_=(dir/"phase_samples.csv").string();
+   phaseLog_.open(phaseLogPath_,std::ios::out|std::ios::trunc);
+  }catch(...){return;}
+ }
+ if(!phaseLog_)return;
+ if(!phaseLogHeaderWritten_){
+  phaseLog_<<"sequence,senderQpc,senderDeltaMs,positionNs,positionDeltaMs,rawPhaseMs,baselineMs,residualMs,state,phaseMadMs,stableWindows,phaseSamples\n";
+  phaseLogHeaderWritten_=true;
+ }
+ phaseLog_<<sequence<<','<<senderQpc<<','<<std::fixed<<std::setprecision(6)
+          <<senderDeltaMs<<','<<positionNs<<','<<positionDeltaMs<<','
+          <<rawPhaseMs<<','<<baselineMs<<','<<residualMs<<','
+          <<toString(phaseState_)<<','<<phaseMadMs_<<','
+          <<phaseStableWindows_<<','<<phaseLockSamples_<<'\n';
+ // Flush each sample intentionally: diagnostic logs must survive a crash/forced close.
+ phaseLog_.flush();
+}
 
 void ReaperSyncSource::resetEstimatorUnlocked(){
  latencyWindow_.clear();
@@ -78,9 +105,9 @@ bool ReaperSyncSource::start(){
 }
 void ReaperSyncSource::stop(){
 #ifdef _WIN32
- if(!running_.exchange(false))return;if(socket_!=~std::uintptr_t{0}){closesocket((SOCKET)socket_);socket_=~std::uintptr_t{0};}if(thread_.joinable())thread_.join();WSACleanup();
+ if(!running_.exchange(false)){if(phaseLog_.is_open())phaseLog_.close();return;}if(socket_!=~std::uintptr_t{0}){closesocket((SOCKET)socket_);socket_=~std::uintptr_t{0};}if(thread_.joinable())thread_.join();WSACleanup();
 #endif
- std::lock_guard l(mutex_);state_.connected=false;state_.locked=false;precision_.health=SyncHealth::Lost;precision_.quality="NO SIGNAL";
+ if(phaseLog_.is_open())phaseLog_.close();std::lock_guard l(mutex_);state_.connected=false;state_.locked=false;precision_.health=SyncHealth::Lost;precision_.quality="NO SIGNAL";
 }
 
 void ReaperSyncSource::updateHealthUnlocked(Clock::time_point now) const {
@@ -206,6 +233,11 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    precision_.phaseStableWindows=phaseStableWindows_;
    precision_.phaseSamples=phaseLockSamples_;
    precision_.predictionErrorMs=residualMs;
+
+   const double senderDeltaMs=senderSec*1000.0;
+   const double positionDeltaMs=(double)(pos-previousPacketPosition_)/1e6;
+   logPhaseSampleUnlocked(seq,qpc,senderDeltaMs,pos,positionDeltaMs,
+                          phaseErrorMs,phaseBaselineMs_,residualMs);
 
    const bool seek=std::abs(phaseErrorMs)>150.0;
    if(seek){
