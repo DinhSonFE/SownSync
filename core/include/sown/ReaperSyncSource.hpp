@@ -77,6 +77,7 @@ private:
     double sourceSlopeEma_{1.0};
     double phaseBaselineMs_{0.0};
     double residualSquareEma_{0.0};
+    std::vector<double> phaseLearningWindow_;
     int phaseLockSamples_{0};
     bool phaseLocked_{false};
     std::uint64_t previousSenderQpc_{0};
