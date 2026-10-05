@@ -11,6 +11,8 @@
 
 namespace sown {
 enum class SyncHealth { NoSignal, Locked, Holdover, Degraded, Lost };
+enum class PhaseAcquisitionState { Warmup, Acquiring, Stable, Locked, Tracking };
+const char* toString(PhaseAcquisitionState state);
 const char* toString(SyncHealth health);
 
 struct PrecisionStats {
@@ -25,6 +27,10 @@ struct PrecisionStats {
     double phaseBaselineMs{0.0};
     double residualErrorMs{0.0};
     bool phaseLocked{false};
+    PhaseAcquisitionState phaseState{PhaseAcquisitionState::Warmup};
+    double phaseMadMs{0.0};
+    int phaseStableWindows{0};
+    int phaseSamples{0};
     double errorRmsMs{0.0};
     double errorPeakMs{0.0};
     double uptimeSec{0.0};
@@ -78,6 +84,9 @@ private:
     double phaseBaselineMs_{0.0};
     double residualSquareEma_{0.0};
     std::vector<double> phaseLearningWindow_;
+    PhaseAcquisitionState phaseState_{PhaseAcquisitionState::Warmup};
+    int phaseStableWindows_{0};
+    double phaseMadMs_{0.0};
     int phaseLockSamples_{0};
     bool phaseLocked_{false};
     std::uint64_t previousSenderQpc_{0};
