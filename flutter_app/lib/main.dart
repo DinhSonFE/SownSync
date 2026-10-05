@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'dart:convert';
 import 'dart:ffi' hide Size;
 import 'dart:ui' show FontFeature, Size;
 import 'package:ffi/ffi.dart';
