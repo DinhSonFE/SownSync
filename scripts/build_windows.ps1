@@ -19,6 +19,7 @@ Push-Location $flutter
 try {
   Write-Host "[SOWN] Building Flutter Windows ($Config)..." -ForegroundColor Cyan
   if ($Config -eq "Release") { flutter build windows --release } else { flutter build windows --debug }
+  if ($LASTEXITCODE -ne 0) { throw "Flutter Windows build failed with exit code $LASTEXITCODE" }
 } finally { Pop-Location }
 
 $mode = if ($Config -eq "Release") { "Release" } else { "Debug" }
