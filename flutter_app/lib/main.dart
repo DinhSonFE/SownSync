@@ -98,7 +98,7 @@ class _WorkspaceState extends State<Workspace>{
          SizedBox(height: compact ? 10 : 12),
          _operatorStrip(compact: compact),
          SizedBox(height: compact ? 10 : 12),
-         Expanded(child: Row(children:[Expanded(flex:5,child:_cueDeck(compact: compact)),SizedBox(width: compact?10:12),Expanded(flex:3,child:_cueListPanel(compact))])),
+         Expanded(child: Row(crossAxisAlignment:CrossAxisAlignment.stretch,children:[Expanded(flex:5,child:Column(children:[Expanded(flex:5,child:_liveTimeline(compact:compact)),SizedBox(height:compact?8:10),Expanded(flex:4,child:_cueDeck(compact:compact))])),SizedBox(width:compact?8:10),Expanded(flex:3,child:_cueListPanel(compact))])),
        ]),
      );
    });
@@ -110,7 +110,7 @@ class _WorkspaceState extends State<Workspace>{
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    return Container(
-     height: compact ? 210 : wide ? 310 : 250,
+     height: compact ? 190 : wide ? 235 : 215,
      padding: EdgeInsets.fromLTRB(compact ? 18 : 28, 16, compact ? 18 : 28, 14),
      decoration: _box(),
      child: Column(children: [
@@ -122,7 +122,7 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontFamily: 'Consolas', fontSize: compact ? 72 : wide ? 138 : 96, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
+         child: Text(clock(pos), style: TextStyle(fontFamily: 'Consolas', fontSize: compact ? 76 : wide ? 116 : 96, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
        ),
        const SizedBox(height: 2),
        Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
@@ -144,14 +144,16 @@ class _WorkspaceState extends State<Workspace>{
  }
 
  Widget _operatorStrip({bool compact = false}) {
-   final syncText = locked ? 'READY' : connected ? 'ACQUIRING' : 'OFFLINE';
+   final syncText = locked ? 'LOCKED' : connected ? 'ACQUIRING' : 'OFFLINE';
    final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
    final transportColor = transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed;
    return Container(
-     height: compact ? 62 : 70,
+     height: compact ? 54 : 58,
      padding: const EdgeInsets.symmetric(horizontal: 18),
      decoration: _box(),
      child: Row(children: [
+       Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:kRed.withValues(alpha:.12),borderRadius:BorderRadius.circular(7)),child:const Text('RUN',style:TextStyle(color:kRed,fontSize:10,fontWeight:FontWeight.w900,letterSpacing:1.2))),
+       const SizedBox(width:14),
        _statusDot(connected ? Colors.greenAccent : Colors.white24),
        const SizedBox(width: 10),
        Flexible(child: Text(source.isEmpty ? 'NO SOURCE' : source, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
@@ -175,12 +177,42 @@ class _WorkspaceState extends State<Workspace>{
    );
  }
 
+ Widget _liveTimeline({bool compact=false}) {
+   const windowNs=20000000000;
+   final from=pos-windowNs, to=pos+windowNs;
+   final visible=cueList.where((q)=>q.timeNs>=from&&q.timeNs<=to).toList();
+   return Container(
+     padding:EdgeInsets.all(compact?12:16),decoration:_box(),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Row(children:[_label('LIVE TIMELINE'),const Spacer(),const Text('−20s     NOW     +20s',style:TextStyle(color:Colors.white38,fontSize:10,fontWeight:FontWeight.w700))]),
+       const SizedBox(height:8),
+       Expanded(child:LayoutBuilder(builder:(context,b){
+         final w=b.maxWidth;
+         return Stack(clipBehavior:Clip.hardEdge,children:[
+           Positioned(left:0,right:0,top:b.maxHeight*.48,child:Container(height:2,color:kLine)),
+           ...List.generate(9,(i)=>Positioned(left:(w-1)*i/8,top:b.maxHeight*.48-5,child:Container(width:1,height:10,color:Colors.white12))),
+           Positioned(left:w*.5-1,top:0,bottom:0,child:Container(width:2,color:kRed)),
+           ...visible.map((q){
+             final x=((q.timeNs-from)/(to-from))*w;
+             final isPast=q.timeNs<pos, isNext=q.id==next?.id;
+             final color=isNext?kRed:(isPast?Colors.white24:Colors.white70);
+             return Positioned(left:(x-2).clamp(0.0,w-90),top:isNext?18:42+(q.id%2)*30,child:SizedBox(width:90,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+               Container(width:isNext?3:2,height:isNext?34:22,color:color),const SizedBox(height:3),
+               Text(q.name.isEmpty?'Cue '+q.id.toString():q.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:color,fontSize:isNext?11:9,fontWeight:isNext?FontWeight.w900:FontWeight.w700)),
+             ])));
+           }),
+           Positioned(left:w*.5-44,bottom:0,child:SizedBox(width:88,child:Text(clock(pos,millis:false),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white70,fontSize:10,fontWeight:FontWeight.w800,fontFeatures:[FontFeature.tabularFigures()])))),
+         ]);
+       })),
+     ]),
+   );
+ }
  Widget _cueDeck({bool compact = false, bool stacked = false}) {
    return Container(
      padding: EdgeInsets.all(compact ? 12 : 16),
      decoration: _box(),
      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-       Row(children: [_label('SHOW CUES'), const Spacer(), Text('$cueCount CUES', style: const TextStyle(color: Colors.white30, fontSize: 9))]),
+       Row(children: [_label('OPERATOR CUES'), const Spacer(), Text('$cueCount CUES', style: const TextStyle(color: Colors.white30, fontSize: 9))]),
        const SizedBox(height: 10),
        Expanded(
          child: stacked
@@ -190,9 +222,9 @@ class _WorkspaceState extends State<Workspace>{
                  Expanded(flex: 2, child: _nextCard(compact)),
                ])
              : Row(children: [
-                 Expanded(flex: 5, child: _currentCard(compact)),
+                 Expanded(flex: 4, child: _currentCard(compact)),
                  const SizedBox(width: 10),
-                 Expanded(flex: 5, child: _nextCard(compact)),
+                 Expanded(flex: 6, child: _nextCard(compact)),
                ]),
        ),
      ]),
@@ -256,7 +288,7 @@ class _WorkspaceState extends State<Workspace>{
      padding: EdgeInsets.all(compact?12:14),
      decoration:_box(),
      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Row(children:[const Text('CUE LIST',style:TextStyle(color:Colors.white70,fontSize:14,fontWeight:FontWeight.w900,letterSpacing:1.3)),const Spacer(),Text('${cueList.length} CUES',style:const TextStyle(color:Colors.white38,fontSize:11,fontWeight:FontWeight.w700))]),
+       Row(children:[const Text('CUE STACK',style:TextStyle(color:Colors.white70,fontSize:14,fontWeight:FontWeight.w900,letterSpacing:1.3)),const Spacer(),Text('${cueList.length} CUES',style:const TextStyle(color:Colors.white38,fontSize:11,fontWeight:FontWeight.w700))]),
        const SizedBox(height:10),
        Container(height:1,color:kLine),
        const SizedBox(height:6),
