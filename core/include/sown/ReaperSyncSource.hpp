@@ -25,6 +25,8 @@ struct PrecisionStats {
     double packetRateHz{0.0};
     double packetAgeMs{0.0};
     double phaseErrorMs{0.0};
+    double windowPhaseMs{0.0};
+    int windowPackets{0};
     double phaseBaselineMs{0.0};
     double residualErrorMs{0.0};
     bool phaseLocked{false};
@@ -95,6 +97,9 @@ private:
     int phaseLockSamples_{0};
     bool phaseLocked_{false};
     std::uint64_t previousSenderQpc_{0};
+    std::uint64_t windowAnchorSenderQpc_{0};
+    TimeNs windowAnchorPosition_{0};
+    int windowPacketCount_{0};
     std::uint64_t previousSenderQpcFreq_{0};
     int settlingPackets_{0};
     Clock::time_point startedAt_{Clock::now()};
