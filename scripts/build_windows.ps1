@@ -4,6 +4,15 @@ param(
 )
 $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
+
+# Flutter may finish rebuilding while an older SOWN Sync process still owns
+# sown_core_api.dll. Stop every process launched from this workspace before
+# replacing the native DLL.
+Get-Process -Name "sown_sync" -ErrorAction SilentlyContinue | ForEach-Object {
+  Write-Host "[SOWN] Stopping running sown_sync.exe (PID $($_.Id))..." -ForegroundColor Yellow
+  Stop-Process -Id $_.Id -Force -ErrorAction SilentlyContinue
+}
+Start-Sleep -Milliseconds 350
 $coreBuild = Join-Path $root "build-native"
 $flutter = Join-Path $root "flutter_app"
 $fontDir = Join-Path $flutter "assets\fonts"
@@ -32,6 +41,18 @@ try {
 $mode = if ($Config -eq "Release") { "Release" } else { "Debug" }
 $appDir = Join-Path $flutter "build\windows\x64\runner\$mode"
 if (!(Test-Path $appDir)) { throw "Flutter output directory not found: $appDir" }
-Copy-Item $dll (Join-Path $appDir "sown_core_api.dll") -Force
+$targetDll = Join-Path $appDir "sown_core_api.dll"
+$copied = $false
+for ($attempt = 1; $attempt -le 8 -and -not $copied; $attempt++) {
+  try {
+    Copy-Item $dll $targetDll -Force -ErrorAction Stop
+    $copied = $true
+  } catch {
+    if ($attempt -eq 8) { throw }
+    Write-Host "[SOWN] Native DLL still locked; retry $attempt/8..." -ForegroundColor Yellow
+    Get-Process -Name "sown_sync" -ErrorAction SilentlyContinue | Stop-Process -Force -ErrorAction SilentlyContinue
+    Start-Sleep -Milliseconds 500
+  }
+}
 Write-Host "[SOWN] Native core integrated: $appDir\sown_core_api.dll" -ForegroundColor Green
 Write-Host "[SOWN] Run: $appDir\sown_sync.exe" -ForegroundColor Green
