@@ -44,6 +44,7 @@ struct PrecisionStats {
     double errorPeakMs{0.0};
     double uptimeSec{0.0};
     std::uint64_t packets{0}, sequenceGaps{0}, seekEvents{0}, hardSnaps{0}, softCorrections{0}, reconnects{0}, duplicatePackets{0}, outOfOrderPackets{0};
+    std::uint64_t transportTransitions{0}, playTransitions{0}, stopTransitions{0}, pauseTransitions{0}, stoppedSeeks{0};
     SyncHealth health{SyncHealth::NoSignal};
     const char* quality{"NO SIGNAL"};
     const char* clockMode{"WAITING"};
@@ -118,6 +119,7 @@ private:
     // stopped position after REAPER reports the same value for several packets.
     TimeNs stoppedCandidatePosition_{0};
     int stoppedCandidatePackets_{0};
+    TimeNs lastStoppedAnchor_{0};
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
