@@ -1,5 +1,5 @@
 import 'dart:async';
-import 'dart:ffi';
+import 'dart:ffi' hide Size;
 import 'dart:ui' show FontFeature, Size;
 import 'package:ffi/ffi.dart';
 import 'package:flutter/material.dart';
@@ -339,10 +339,97 @@ class _WorkspaceState extends State<Workspace>{
 
 
  Widget _pageBody(){switch(page){case 0:return _show();case 1:return _timelinePage();case 2:return _cuesPage();case 3:return _sourcesPage();case 4:return _settingsPage();default:return _show();}}
- Widget _timelinePage()=>Padding(padding:const EdgeInsets.all(16),child:Column(children:[_sectionHeader('TIMELINE EDITOR','REAPER MARKERS • WAVEFORM • CUSTOM COLORS',actions:[_smallButton('+ MARKER'),_smallButton('ZOOM 100%'),_smallButton('FOLLOW',hot:true)]),const SizedBox(height:12),Expanded(child:Container(decoration:_box(),clipBehavior:Clip.antiAlias,child:Column(children:[Container(height:52,padding:const EdgeInsets.symmetric(horizontal:16),color:const Color(0xFF0D1118),child:Row(children:[_filter('ALL MARKERS',Colors.white),_filter('LIGHTING',kRed),_filter('LASER',Colors.greenAccent),_filter('VIDEO',Colors.blueAccent),_filter('MACHINE',Colors.orangeAccent),_filter('SFX',Colors.purpleAccent),const Spacer(),const Text('REAPER CUSTOM COLOR SYNC',style:TextStyle(color:Colors.greenAccent,fontSize:10,fontWeight:FontWeight.w800))])),Expanded(child:CustomPaint(painter:_ReaperTimelinePainter(positionNs:pos),child:const SizedBox.expand()))]))),const SizedBox(height:12),Container(height:118,padding:const EdgeInsets.all(16),decoration:_box(),child:Row(children:[Expanded(flex:2,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('MARKER INSPECTOR'),const Spacer(),const Text('DROP',style:TextStyle(fontSize:24,fontWeight:FontWeight.w800)),const Text('Selected REAPER marker',style:TextStyle(color:Colors.white38,fontSize:10))])),Expanded(child:_settingMetric('DEPARTMENT','LIGHTING',kRed)),Expanded(child:_settingMetric('TIMECODE','00:00:40.000',Colors.white)),Expanded(child:_settingMetric('COLOR','REAPER CUSTOM',Colors.greenAccent))]))]));
+ Widget _timelinePage(){
+  return Padding(
+    padding: const EdgeInsets.all(16),
+    child: Column(children: [
+      _sectionHeader('TIMELINE EDITOR','REAPER MARKERS • WAVEFORM • CUSTOM COLORS',
+        actions:[_smallButton('+ MARKER'),_smallButton('ZOOM 100%'),_smallButton('FOLLOW',hot:true)]),
+      const SizedBox(height:12),
+      Expanded(
+        child: Container(
+          decoration:_box(),
+          clipBehavior:Clip.antiAlias,
+          child:Column(children:[
+            Container(
+              height:52,
+              padding:const EdgeInsets.symmetric(horizontal:16),
+              color:const Color(0xFF0D1118),
+              child:Row(children:[
+                _filter('ALL MARKERS',Colors.white),
+                _filter('LIGHTING',kRed),
+                _filter('LASER',Colors.greenAccent),
+                _filter('VIDEO',Colors.blueAccent),
+                _filter('MACHINE',Colors.orangeAccent),
+                _filter('SFX',Colors.purpleAccent),
+                const Spacer(),
+                const Text('REAPER CUSTOM COLOR SYNC',style:TextStyle(color:Colors.greenAccent,fontSize:10,fontWeight:FontWeight.w800)),
+              ]),
+            ),
+            Expanded(child:CustomPaint(painter:_ReaperTimelinePainter(positionNs:pos),child:const SizedBox.expand())),
+          ]),
+        ),
+      ),
+      const SizedBox(height:12),
+      Container(
+        height:118,
+        padding:const EdgeInsets.all(16),
+        decoration:_box(),
+        child:Row(children:[
+          Expanded(flex:2,child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+            _label('MARKER INSPECTOR'),
+            const Spacer(),
+            const Text('DROP',style:TextStyle(fontSize:24,fontWeight:FontWeight.w800)),
+            const Text('Selected REAPER marker',style:TextStyle(color:Colors.white38,fontSize:10)),
+          ])),
+          Expanded(child:_settingMetric('DEPARTMENT','LIGHTING',kRed)),
+          Expanded(child:_settingMetric('TIMECODE','00:00:40.000',Colors.white)),
+          Expanded(child:_settingMetric('COLOR','REAPER CUSTOM',Colors.greenAccent)),
+        ]),
+      ),
+    ]),
+  );
+}
  Widget _cuesPage()=>Padding(padding:const EdgeInsets.all(16),child:Column(children:[_sectionHeader('CUES','CUE DATABASE • FILTER • EDIT • IMPORT',actions:[_smallButton('+ ADD CUE',hot:true)]),const SizedBox(height:12),Expanded(child:Row(children:[Expanded(flex:7,child:Container(padding:const EdgeInsets.all(14),decoration:_box(),child:Column(children:[Row(children:[_filter('ALL',Colors.white),_filter('LIGHTING',kRed),_filter('VIDEO',Colors.blueAccent),_filter('SFX',Colors.orangeAccent),const Spacer(),const SizedBox(width:220,child:TextField(decoration:InputDecoration(isDense:true,hintText:'Search cues…',prefixIcon:Icon(Icons.search,size:18),border:OutlineInputBorder())))]),const SizedBox(height:12),const Divider(height:1,color:kLine),Expanded(child:cueList.isEmpty?const Center(child:Text('NO CUES FROM SOURCE',style:TextStyle(color:Colors.white30))):ListView.builder(itemCount:cueList.length,itemBuilder:(context,i){final q=cueList[i];final col=_deptColor(q.department);return Container(height:62,margin:const EdgeInsets.only(top:6),padding:const EdgeInsets.symmetric(horizontal:12),decoration:BoxDecoration(color:q.id==next?.id?kRed.withValues(alpha:.08):Colors.transparent,borderRadius:BorderRadius.circular(8)),child:Row(children:[Container(width:3,height:30,color:col),const SizedBox(width:12),SizedBox(width:55,child:Text('#'+q.id.toString(),style:const TextStyle(color:Colors.white54,fontWeight:FontWeight.w800))),SizedBox(width:135,child:Text(clock(q.timeNs),style:const TextStyle(fontFeatures:[FontFeature.tabularFigures()],color:Colors.white54))),Expanded(child:Text(q.name.isEmpty?'Cue '+q.id.toString():q.name,style:const TextStyle(fontWeight:FontWeight.w700))),SizedBox(width:120,child:Text(q.department.isEmpty?'ALL':q.department.toUpperCase(),style:TextStyle(color:col,fontSize:10,fontWeight:FontWeight.w800))),Text(q.id==current?.id?'NOW':q.id==next?.id?'NEXT':'READY',style:TextStyle(color:q.id==current?.id?Colors.greenAccent:q.id==next?.id?kRed:Colors.white30,fontSize:10,fontWeight:FontWeight.w900))]));}))]))),const SizedBox(width:12),Expanded(flex:3,child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('CUE EDITOR',style:TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:24),_editField('NAME',next?.name??'DROP'),_editField('DEPARTMENT',next?.department??'LIGHTING'),_editField('TIMECODE',next==null?'00:00:40.000':clock(next!.timeNs)),_editField('WARNING','00:00:05.000'),_editField('SOURCE',source),const Spacer(),SizedBox(width:double.infinity,child:FilledButton(style:FilledButton.styleFrom(backgroundColor:kRed),onPressed:(){},child:const Text('SAVE CHANGES')))])))]))]));
  Widget _sourcesPage()=>Padding(padding:const EdgeInsets.all(16),child:Column(children:[_sectionHeader('SOURCES & SYNC','INPUT SOURCES • CLOCK • HEALTH • FAILOVER'),const SizedBox(height:12),Expanded(child:Row(children:[Expanded(flex:2,child:Container(padding:const EdgeInsets.all(16),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SYNC SOURCES'),const SizedBox(height:14),_sourceCard('REAPER','PRIMARY',connected?'CONNECTED':'OFFLINE',connected?Colors.greenAccent:Colors.white38,true),_sourceCard('LTC','BACKUP','NO SIGNAL',Colors.white38,false),_sourceCard('MTC','AVAILABLE','IDLE',Colors.white38,false),_sourceCard('CUEPOINTS','AVAILABLE','DISCONNECTED',Colors.white38,false)]))),const SizedBox(width:12),Expanded(child:Column(children:[Expanded(child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SYNC HEALTH'),const SizedBox(height:20),Text(locked?'LOCKED':connected?'ACQUIRING':'OFFLINE',style:TextStyle(fontSize:30,fontWeight:FontWeight.w900,color:locked?Colors.greenAccent:kRed)),const SizedBox(height:24),_metric('SOURCE',source,Colors.white),const SizedBox(height:16),_metric('FPS',fps>0?fps.toStringAsFixed(2):'--',Colors.white),const SizedBox(height:16),_metric('TRANSPORT',transport==1?'PLAYING':transport==2?'PAUSED':'STOPPED',transport==1?Colors.greenAccent:kRed)]))),const SizedBox(height:12),Expanded(child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SOURCE PRIORITY'),const SizedBox(height:14),...['1   REAPER','2   LTC','3   MTC','4   INTERNAL'].map((e)=>Container(height:48,margin:const EdgeInsets.only(bottom:8),padding:const EdgeInsets.symmetric(horizontal:14),alignment:Alignment.centerLeft,decoration:BoxDecoration(color:Colors.white.withValues(alpha:.025),borderRadius:BorderRadius.circular(8),border:Border.all(color:kLine)),child:Text(e,style:const TextStyle(fontWeight:FontWeight.w700))))]))])))]))]));
- Widget _settingsPage()=>Padding(padding:const EdgeInsets.all(16),child:Column(children:[_sectionHeader('SETTINGS','APPLICATION • DISPLAY • REAPER • NETWORK'),const SizedBox(height:12),Expanded(child:Row(children:[Container(width:280,padding:const EdgeInsets.all(14),decoration:_box(),child:Column(children:['GENERAL','DISPLAY','REAPER','NETWORK','CUE BEHAVIOR','ABOUT'].map((e)=>Container(height:48,margin:const EdgeInsets.only(bottom:6),padding:const EdgeInsets.symmetric(horizontal:14),alignment:Alignment.centerLeft,decoration:BoxDecoration(color:e=='REAPER'?kRed.withValues(alpha:.10):Colors.transparent,borderRadius:BorderRadius.circular(8)),child:Text(e,style:TextStyle(color:e=='REAPER'?kRed:Colors.white54,fontSize:11,fontWeight:FontWeight.w800))).toList())),const SizedBox(width:12),Expanded(child:Container(padding:const EdgeInsets.all(22),decoration:_box(),child:ListView(children:[const Text('REAPER INTEGRATION',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),const SizedBox(height:6),const Text('Configure project sync, markers, departments and waveform.',style:TextStyle(color:Colors.white38)),const SizedBox(height:28),_settingsTitle('CONNECTION'),_settingsRow('Bridge Port','49731'),_settingsRow('Update Rate','30 Hz'),const SizedBox(height:22),_settingsTitle('MARKER SYNC'),_toggleRow('Sync marker name',true),_toggleRow('Sync marker color',true),_toggleRow('Sync marker position',true),const SizedBox(height:22),_settingsTitle('DEPARTMENT MAPPING'),_colorRow('LIGHTING','Red marker / LX',kRed),_colorRow('VIDEO','Blue marker / VX',Colors.blueAccent),_colorRow('SFX','Yellow marker / SFX',Colors.orangeAccent),const SizedBox(height:22),_settingsTitle('WAVEFORM'),_settingsRow('Waveform cache','Enabled'),_settingsRow('Audio source','REAPER master output')])))]))]));
+ Widget _settingsPage(){
+  final sections=['GENERAL','DISPLAY','REAPER','NETWORK','CUE BEHAVIOR','ABOUT'];
+  return Padding(
+    padding:const EdgeInsets.all(16),
+    child:Column(children:[
+      _sectionHeader('SETTINGS','APPLICATION • DISPLAY • REAPER • NETWORK'),
+      const SizedBox(height:12),
+      Expanded(child:Row(children:[
+        Container(
+          width:280,padding:const EdgeInsets.all(14),decoration:_box(),
+          child:Column(children:sections.map((e)=>Container(
+            height:48,margin:const EdgeInsets.only(bottom:6),
+            padding:const EdgeInsets.symmetric(horizontal:14),alignment:Alignment.centerLeft,
+            decoration:BoxDecoration(color:e=='REAPER'?kRed.withValues(alpha:.10):Colors.transparent,borderRadius:BorderRadius.circular(8)),
+            child:Text(e,style:TextStyle(color:e=='REAPER'?kRed:Colors.white54,fontSize:11,fontWeight:FontWeight.w800)),
+          )).toList()),
+        ),
+        const SizedBox(width:12),
+        Expanded(child:Container(
+          padding:const EdgeInsets.all(22),decoration:_box(),
+          child:ListView(children:[
+            const Text('REAPER INTEGRATION',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900)),
+            const SizedBox(height:6),
+            const Text('Configure project sync, markers, departments and waveform.',style:TextStyle(color:Colors.white38)),
+            const SizedBox(height:28),
+            _settingsTitle('CONNECTION'),_settingsRow('Bridge Port','49731'),_settingsRow('Update Rate','30 Hz'),
+            const SizedBox(height:22),
+            _settingsTitle('MARKER SYNC'),_toggleRow('Sync marker name',true),_toggleRow('Sync marker color',true),_toggleRow('Sync marker position',true),
+            const SizedBox(height:22),
+            _settingsTitle('DEPARTMENT MAPPING'),_colorRow('LIGHTING','Red marker / LX',kRed),_colorRow('VIDEO','Blue marker / VX',Colors.blueAccent),_colorRow('SFX','Yellow marker / SFX',Colors.orangeAccent),
+            const SizedBox(height:22),
+            _settingsTitle('WAVEFORM'),_settingsRow('Waveform cache','Enabled'),_settingsRow('Audio source','REAPER master output'),
+          ]),
+        )),
+      ])),
+    ]),
+  );
+}
  Widget _sectionHeader(String title,String sub,{List<Widget> actions=const[]})=>Container(height:68,padding:const EdgeInsets.symmetric(horizontal:18),decoration:_box(),child:Row(children:[Column(mainAxisAlignment:MainAxisAlignment.center,crossAxisAlignment:CrossAxisAlignment.start,children:[Text(title,style:const TextStyle(fontSize:16,fontWeight:FontWeight.w900)),const SizedBox(height:3),Text(sub,style:const TextStyle(color:Colors.white38,fontSize:9,fontWeight:FontWeight.w700))]),const Spacer(),...actions.map((w)=>Padding(padding:const EdgeInsets.only(left:8),child:w))]));
  Widget _smallButton(String s,{bool hot=false})=>Container(padding:const EdgeInsets.symmetric(horizontal:14,vertical:10),decoration:BoxDecoration(color:(hot?kRed:Colors.white).withValues(alpha:hot ? .12 : .04),borderRadius:BorderRadius.circular(7),border:Border.all(color:hot?kRed.withValues(alpha:.3):kLine)),child:Text(s,style:TextStyle(color:hot?kRed:Colors.white70,fontSize:10,fontWeight:FontWeight.w800)));
  Widget _filter(String s,Color c)=>Container(margin:const EdgeInsets.only(right:8),padding:const EdgeInsets.symmetric(horizontal:12,vertical:7),decoration:BoxDecoration(color:c.withValues(alpha:.08),borderRadius:BorderRadius.circular(16)),child:Text(s,style:TextStyle(color:c,fontSize:9,fontWeight:FontWeight.w800)));
@@ -378,7 +465,7 @@ class _ReaperTimelinePainter extends CustomPainter{
   const cols=[Color(0xFFB45CFF),Color(0xFFFF334D),Color(0xFF35D27F),Color(0xFF35D27F),Color(0xFF5B6DFF),Color(0xFFF6A623),Color(0xFFE55AEF),Color(0xFFC9CBD0),Color(0xFFB99A85),Color(0xFF35D27F),Color(0xFF35D27F),Color(0xFF35D27F),Color(0xFF35D27F),Color(0xFFFF334D)];
   const xs=[.03,.08,.15,.18,.22,.27,.31,.35,.39,.47,.55,.60,.74,.90];
   final wave=Paint()..color=const Color(0xAA35D27F)..strokeWidth=2;
-  for(var b=0;b<3;b++){final cy=size.height*(.34+b*.22),amp=size.height*(b==2?.12:.075);for(var i=0;i<size.width.toInt();i+=4){final v=(.25+.75*(i%97)/97.0)*(0.5+0.5*((i*13+b*29)%41)/41.0);canvas.drawLine(Offset(i.toDouble(),cy-amp*v),Offset(i.toDouble(),cy+amp*v),wave);}}
+  for(var b=0;b<3;b++){final cy=size.height*(.34+b*.22);final amp=size.height*(b==2 ? .12 : .075);for(var i=0;i<size.width.toInt();i+=4){final v=(.25+.75*(i%97)/97.0)*(0.5+0.5*((i*13+b*29)%41)/41.0);canvas.drawLine(Offset(i.toDouble(),cy-amp*v),Offset(i.toDouble(),cy+amp*v),wave);}}
   for(var i=0;i<xs.length;i++){final x=size.width*xs[i],p=Paint()..color=cols[i]..strokeWidth=2;canvas.drawLine(Offset(x,52),Offset(x,size.height),p);canvas.drawRRect(RRect.fromRectAndRadius(Rect.fromCenter(center:Offset(x,38),width:24,height:22),const Radius.circular(4)),p);final tp=TextPainter(text:TextSpan(text:(i<9?i+2:i-8).toString(),style:const TextStyle(color:Colors.white,fontSize:9,fontWeight:FontWeight.w800)),textDirection:TextDirection.ltr)..layout();tp.paint(canvas,Offset(x-tp.width/2,38-tp.height/2));}
   final px=size.width*.82;canvas.drawLine(Offset(px,0),Offset(px,size.height),Paint()..color=kRed..strokeWidth=3);
   final t=TextPainter(text:const TextSpan(text:'▼',style:TextStyle(color:kRed,fontSize:20)),textDirection:TextDirection.ltr)..layout();t.paint(canvas,Offset(px-t.width/2,-4));
