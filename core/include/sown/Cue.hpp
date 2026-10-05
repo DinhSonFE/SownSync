@@ -10,5 +10,8 @@ struct Cue {
     std::string department;
     std::string name;
     TimeNs warningNs{5 * kNsPerSecond};
+    TimeNs endNs{};
+    std::uint32_t color{};
+    bool isRegion{false};
 };
 }
