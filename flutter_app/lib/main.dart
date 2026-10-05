@@ -216,7 +216,7 @@ class _WorkspaceState extends State<Workspace>{
              final y=lane*(compact?18.0:20.0);
              final title=q.name.isEmpty?'Cue ${q.id}':q.name;
              return Stack(children:[
-               Positioned(left:x.clamp(1.0,w-2).toDouble(),top:y+16,bottom:20,child:Container(width:isNext?2.5:1.5,color:accent.withValues(alpha:isPast?.22:.72))),
+               Positioned(left:x.clamp(1.0,w-2).toDouble(),top:y+16,bottom:20,child:Container(width:isNext?2.5:1.5,color:accent.withValues(alpha:isPast ? .22 : .72))),
                Positioned(left:(x+5).clamp(3.0,w-(compact?105:145)).toDouble(),top:y,child:Container(
                  constraints:BoxConstraints(maxWidth:compact?100:140),
                  padding:const EdgeInsets.symmetric(horizontal:6,vertical:3),
