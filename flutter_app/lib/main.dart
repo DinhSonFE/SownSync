@@ -390,8 +390,61 @@ class _WorkspaceState extends State<Workspace>{
     ]),
   );
 }
- Widget _cuesPage()=>Padding(padding:const EdgeInsets.all(16),child:Column(children:[_sectionHeader('CUES','CUE DATABASE • FILTER • EDIT • IMPORT',actions:[_smallButton('+ ADD CUE',hot:true)]),const SizedBox(height:12),Expanded(child:Row(children:[Expanded(flex:7,child:Container(padding:const EdgeInsets.all(14),decoration:_box(),child:Column(children:[Row(children:[_filter('ALL',Colors.white),_filter('LIGHTING',kRed),_filter('VIDEO',Colors.blueAccent),_filter('SFX',Colors.orangeAccent),const Spacer(),const SizedBox(width:220,child:TextField(decoration:InputDecoration(isDense:true,hintText:'Search cues…',prefixIcon:Icon(Icons.search,size:18),border:OutlineInputBorder())))]),const SizedBox(height:12),const Divider(height:1,color:kLine),Expanded(child:cueList.isEmpty?const Center(child:Text('NO CUES FROM SOURCE',style:TextStyle(color:Colors.white30))):ListView.builder(itemCount:cueList.length,itemBuilder:(context,i){final q=cueList[i];final col=_deptColor(q.department);return Container(height:62,margin:const EdgeInsets.only(top:6),padding:const EdgeInsets.symmetric(horizontal:12),decoration:BoxDecoration(color:q.id==next?.id?kRed.withValues(alpha:.08):Colors.transparent,borderRadius:BorderRadius.circular(8)),child:Row(children:[Container(width:3,height:30,color:col),const SizedBox(width:12),SizedBox(width:55,child:Text('#'+q.id.toString(),style:const TextStyle(color:Colors.white54,fontWeight:FontWeight.w800))),SizedBox(width:135,child:Text(clock(q.timeNs),style:const TextStyle(fontFeatures:[FontFeature.tabularFigures()],color:Colors.white54))),Expanded(child:Text(q.name.isEmpty?'Cue '+q.id.toString():q.name,style:const TextStyle(fontWeight:FontWeight.w700))),SizedBox(width:120,child:Text(q.department.isEmpty?'ALL':q.department.toUpperCase(),style:TextStyle(color:col,fontSize:10,fontWeight:FontWeight.w800))),Text(q.id==current?.id?'NOW':q.id==next?.id?'NEXT':'READY',style:TextStyle(color:q.id==current?.id?Colors.greenAccent:q.id==next?.id?kRed:Colors.white30,fontSize:10,fontWeight:FontWeight.w900))]));}))]))),const SizedBox(width:12),Expanded(flex:3,child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[const Text('CUE EDITOR',style:TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:24),_editField('NAME',next?.name??'DROP'),_editField('DEPARTMENT',next?.department??'LIGHTING'),_editField('TIMECODE',next==null?'00:00:40.000':clock(next!.timeNs)),_editField('WARNING','00:00:05.000'),_editField('SOURCE',source),const Spacer(),SizedBox(width:double.infinity,child:FilledButton(style:FilledButton.styleFrom(backgroundColor:kRed),onPressed:(){},child:const Text('SAVE CHANGES')))])))]))]));
- Widget _sourcesPage()=>Padding(padding:const EdgeInsets.all(16),child:Column(children:[_sectionHeader('SOURCES & SYNC','INPUT SOURCES • CLOCK • HEALTH • FAILOVER'),const SizedBox(height:12),Expanded(child:Row(children:[Expanded(flex:2,child:Container(padding:const EdgeInsets.all(16),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SYNC SOURCES'),const SizedBox(height:14),_sourceCard('REAPER','PRIMARY',connected?'CONNECTED':'OFFLINE',connected?Colors.greenAccent:Colors.white38,true),_sourceCard('LTC','BACKUP','NO SIGNAL',Colors.white38,false),_sourceCard('MTC','AVAILABLE','IDLE',Colors.white38,false),_sourceCard('CUEPOINTS','AVAILABLE','DISCONNECTED',Colors.white38,false)]))),const SizedBox(width:12),Expanded(child:Column(children:[Expanded(child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SYNC HEALTH'),const SizedBox(height:20),Text(locked?'LOCKED':connected?'ACQUIRING':'OFFLINE',style:TextStyle(fontSize:30,fontWeight:FontWeight.w900,color:locked?Colors.greenAccent:kRed)),const SizedBox(height:24),_metric('SOURCE',source,Colors.white),const SizedBox(height:16),_metric('FPS',fps>0?fps.toStringAsFixed(2):'--',Colors.white),const SizedBox(height:16),_metric('TRANSPORT',transport==1?'PLAYING':transport==2?'PAUSED':'STOPPED',transport==1?Colors.greenAccent:kRed)]))),const SizedBox(height:12),Expanded(child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SOURCE PRIORITY'),const SizedBox(height:14),...['1   REAPER','2   LTC','3   MTC','4   INTERNAL'].map((e)=>Container(height:48,margin:const EdgeInsets.only(bottom:8),padding:const EdgeInsets.symmetric(horizontal:14),alignment:Alignment.centerLeft,decoration:BoxDecoration(color:Colors.white.withValues(alpha:.025),borderRadius:BorderRadius.circular(8),border:Border.all(color:kLine)),child:Text(e,style:const TextStyle(fontWeight:FontWeight.w700))))]))])))]))]));
+
+ Widget _cuesPage(){
+  return Padding(padding:const EdgeInsets.all(16),child:Column(children:[
+   _sectionHeader('CUES','CUE DATABASE • FILTER • EDIT • IMPORT',actions:[_smallButton('+ ADD CUE',hot:true)]),
+   const SizedBox(height:12),
+   Expanded(child:Row(children:[
+    Expanded(flex:7,child:Container(padding:const EdgeInsets.all(14),decoration:_box(),child:Column(children:[
+     Row(children:[_filter('ALL',Colors.white),_filter('LIGHTING',kRed),_filter('VIDEO',Colors.blueAccent),_filter('SFX',Colors.orangeAccent),const Spacer(),const SizedBox(width:220,child:TextField(decoration:InputDecoration(isDense:true,hintText:'Search cues…',prefixIcon:Icon(Icons.search,size:18),border:OutlineInputBorder())))]),
+     const SizedBox(height:12),const Divider(height:1,color:kLine),
+     Expanded(child:cueList.isEmpty?const Center(child:Text('NO CUES FROM SOURCE',style:TextStyle(color:Colors.white30))):ListView.builder(itemCount:cueList.length,itemBuilder:(context,i){
+      final q=cueList[i];final col=_deptColor(q.department);
+      return Container(height:62,margin:const EdgeInsets.only(top:6),padding:const EdgeInsets.symmetric(horizontal:12),decoration:BoxDecoration(color:q.id==next?.id?kRed.withValues(alpha:.08):Colors.transparent,borderRadius:BorderRadius.circular(8)),child:Row(children:[
+       Container(width:3,height:30,color:col),const SizedBox(width:12),
+       SizedBox(width:55,child:Text('#'+q.id.toString(),style:const TextStyle(color:Colors.white54,fontWeight:FontWeight.w800))),
+       SizedBox(width:135,child:Text(clock(q.timeNs),style:const TextStyle(fontFeatures:[FontFeature.tabularFigures()],color:Colors.white54))),
+       Expanded(child:Text(q.name.isEmpty?'Cue '+q.id.toString():q.name,style:const TextStyle(fontWeight:FontWeight.w700))),
+       SizedBox(width:120,child:Text(q.department.isEmpty?'ALL':q.department.toUpperCase(),style:TextStyle(color:col,fontSize:10,fontWeight:FontWeight.w800))),
+       Text(q.id==current?.id?'NOW':q.id==next?.id?'NEXT':'READY',style:TextStyle(color:q.id==current?.id?Colors.greenAccent:q.id==next?.id?kRed:Colors.white30,fontSize:10,fontWeight:FontWeight.w900)),
+      ]));
+     })),
+    ]))),
+    const SizedBox(width:12),
+    Expanded(flex:3,child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     const Text('CUE EDITOR',style:TextStyle(fontWeight:FontWeight.w900)),const SizedBox(height:24),
+     _editField('NAME',next?.name??'DROP'),_editField('DEPARTMENT',next?.department??'LIGHTING'),_editField('TIMECODE',next==null?'00:00:40.000':clock(next!.timeNs)),_editField('WARNING','00:00:05.000'),_editField('SOURCE',source),
+     const Spacer(),SizedBox(width:double.infinity,child:FilledButton(style:FilledButton.styleFrom(backgroundColor:kRed),onPressed:(){},child:const Text('SAVE CHANGES'))),
+    ]))),
+   ])),
+  ]));
+ }
+ Widget _sourcesPage(){
+  return Padding(padding:const EdgeInsets.all(16),child:Column(children:[
+   _sectionHeader('SOURCES & SYNC','INPUT SOURCES • CLOCK • HEALTH • FAILOVER'),const SizedBox(height:12),
+   Expanded(child:Row(children:[
+    Expanded(flex:2,child:Container(padding:const EdgeInsets.all(16),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+     _label('SYNC SOURCES'),const SizedBox(height:14),
+     _sourceCard('REAPER','PRIMARY',connected?'CONNECTED':'OFFLINE',connected?Colors.greenAccent:Colors.white38,true),
+     _sourceCard('LTC','BACKUP','NO SIGNAL',Colors.white38,false),_sourceCard('MTC','AVAILABLE','IDLE',Colors.white38,false),_sourceCard('CUEPOINTS','AVAILABLE','DISCONNECTED',Colors.white38,false),
+    ]))),
+    const SizedBox(width:12),
+    Expanded(child:Column(children:[
+     Expanded(child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      _label('SYNC HEALTH'),const SizedBox(height:20),
+      Text(locked?'LOCKED':connected?'ACQUIRING':'OFFLINE',style:TextStyle(fontSize:30,fontWeight:FontWeight.w900,color:locked?Colors.greenAccent:kRed)),
+      const SizedBox(height:24),_metric('SOURCE',source,Colors.white),const SizedBox(height:16),_metric('FPS',fps>0?fps.toStringAsFixed(2):'--',Colors.white),const SizedBox(height:16),_metric('TRANSPORT',transport==1?'PLAYING':transport==2?'PAUSED':'STOPPED',transport==1?Colors.greenAccent:kRed),
+     ]))),
+     const SizedBox(height:12),
+     Expanded(child:Container(padding:const EdgeInsets.all(18),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+      _label('SOURCE PRIORITY'),const SizedBox(height:14),
+      ...['1   REAPER','2   LTC','3   MTC','4   INTERNAL'].map((e)=>Container(height:48,margin:const EdgeInsets.only(bottom:8),padding:const EdgeInsets.symmetric(horizontal:14),alignment:Alignment.centerLeft,decoration:BoxDecoration(color:Colors.white.withValues(alpha:.025),borderRadius:BorderRadius.circular(8),border:Border.all(color:kLine)),child:Text(e,style:const TextStyle(fontWeight:FontWeight.w700)))),
+     ]))),
+    ])),
+   ])),
+  ]));
+ }
  Widget _settingsPage(){
   final sections=['GENERAL','DISPLAY','REAPER','NETWORK','CUE BEHAVIOR','ABOUT'];
   return Padding(
