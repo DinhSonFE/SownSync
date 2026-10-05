@@ -15,6 +15,8 @@ final class NativeState extends Struct {
 }
 typedef InitNative = Int32 Function();
 typedef InitDart = int Function();
+typedef ShutdownNative = Void Function();
+typedef ShutdownDart = void Function();
 typedef StateNative = Int32 Function(Pointer<NativeState>);
 typedef StateDart = int Function(Pointer<NativeState>);
 typedef StringNative = Pointer<Utf8> Function();
@@ -23,6 +25,7 @@ typedef StringDart = Pointer<Utf8> Function();
 class CoreBridge {
   DynamicLibrary? _lib;
   late InitDart _init;
+  late ShutdownDart _shutdown;
   late StateDart _state;
   late StringDart _project;
   late StringDart _source;
@@ -31,6 +34,7 @@ class CoreBridge {
     try {
       _lib = DynamicLibrary.open('sown_core_api.dll');
       _init = _lib!.lookupFunction<InitNative, InitDart>('sown_init');
+      _shutdown = _lib!.lookupFunction<ShutdownNative, ShutdownDart>('sown_shutdown');
       _state = _lib!.lookupFunction<StateNative, StateDart>('sown_get_state');
       _project = _lib!.lookupFunction<StringNative, StringDart>('sown_get_project_name');
       _source = _lib!.lookupFunction<StringNative, StringDart>('sown_get_active_source');
@@ -38,6 +42,7 @@ class CoreBridge {
     } catch (_) { return false; }
   }
   bool read(Pointer<NativeState> p) => _state(p) == 1;
+  void close() { if (_lib != null) _shutdown(); }
   String project() => _project().toDartString();
   String source() => _source().toDartString();
 }
@@ -96,7 +101,7 @@ class _HomePageState extends State<HomePage> {
     calloc.free(p);
   }
 
-  @override void dispose() { timer?.cancel(); super.dispose(); }
+  @override void dispose() { timer?.cancel(); if (nativeLoaded) core.close(); super.dispose(); }
 
   String timecode() {
     final ms = positionNs ~/ 1000000;
@@ -166,7 +171,7 @@ class _HomePageState extends State<HomePage> {
               chip(Icons.sync, locked ? 'SYNC READY' : 'SYNC WAITING', locked ? Colors.greenAccent : Colors.orangeAccent),
               const SizedBox(width: 10), chip(Icons.graphic_eq, source, Colors.white70),
               const Spacer(),
-              Text(nativeLoaded ? 'Core v0.4.0' : 'Core DLL not loaded', style: const TextStyle(color: Colors.white38)),
+              Text(nativeLoaded ? 'Core v0.4.1' : 'Core DLL not loaded', style: const TextStyle(color: Colors.white38)),
             ]),
           ]),
         )),
