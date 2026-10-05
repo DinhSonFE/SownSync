@@ -73,58 +73,250 @@ class _WorkspaceState extends State<Workspace>{
      ]),
    );
  }
- Widget _show()=>Padding(padding:const EdgeInsets.all(20),child:Column(children:[_hero(),const SizedBox(height:14),Expanded(child:Row(children:[Expanded(flex:7,child:_cueDeck()),const SizedBox(width:14),Expanded(flex:3,child:_rightRail())]))]));
- Widget _hero() {
+ Widget _show() {
+   return LayoutBuilder(builder: (context, constraints) {
+     final compact = constraints.maxWidth < 1050 || constraints.maxHeight < 650;
+     return Padding(
+       padding: EdgeInsets.all(compact ? 12 : 20),
+       child: Column(children: [
+         _hero(compact),
+         SizedBox(height: compact ? 10 : 14),
+         Expanded(
+           child: compact
+               ? _cueDeck(compact: true)
+               : Row(children: [
+                   Expanded(flex: 7, child: _cueDeck()),
+                   const SizedBox(width: 14),
+                   SizedBox(width: 290, child: _rightRail()),
+                 ]),
+         ),
+         if (compact) ...[
+           const SizedBox(height: 10),
+           SizedBox(height: 92, child: _compactStatus()),
+         ],
+       ]),
+     );
+   });
+ }
+
+ Widget _hero(bool compact) {
    final playing = transport == 1;
    final paused = transport == 2;
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    final nextText = next != null ? 'NEXT  ${clock(countdown)}' : 'NO UPCOMING CUE';
    return Container(
-     height: 270,
-     padding: const EdgeInsets.fromLTRB(26, 20, 26, 18),
+     height: compact ? 205 : 250,
+     padding: EdgeInsets.fromLTRB(compact ? 18 : 26, 16, compact ? 18 : 26, 14),
      decoration: _box(),
      child: Column(children: [
-       Row(children: [_label('MASTER TIMECODE'), const Spacer(), _pill(playing ? 'PLAYING' : paused ? 'PAUSED' : 'STOPPED', tcColor)]),
+       Row(children: [
+         _label('MASTER TIMECODE'),
+         const Spacer(),
+         _pill(playing ? 'PLAYING' : paused ? 'PAUSED' : 'STOPPED', tcColor),
+       ]),
        const Spacer(),
-       Text(clock(pos), style: const TextStyle(fontSize: 70, fontWeight: FontWeight.w300, letterSpacing: 2, fontFeatures: [FontFeature.tabularFigures()])),
-       const SizedBox(height: 8),
-       Text('$fpsText FPS   •   $source MASTER', style: const TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+       FittedBox(
+         fit: BoxFit.scaleDown,
+         child: Text(
+           clock(pos),
+           style: TextStyle(
+             fontSize: compact ? 52 : 68,
+             fontWeight: FontWeight.w300,
+             letterSpacing: 2,
+             fontFeatures: const [FontFeature.tabularFigures()],
+           ),
+         ),
+       ),
+       const SizedBox(height: 4),
+       Text('$fpsText FPS   •   $source MASTER', style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.1)),
        const Spacer(),
        _timeline(),
-       const SizedBox(height: 12),
+       const SizedBox(height: 5),
        Row(children: [
-         Text(clock(pos, millis: false), style: const TextStyle(color: Colors.white38, fontSize: 11)),
+         Text(clock(pos, millis: false), style: const TextStyle(color: Colors.white38, fontSize: 10)),
          const Spacer(),
-         Text(nextText, style: TextStyle(color: next != null ? kRed : Colors.white24, fontSize: 11, fontWeight: FontWeight.w700)),
+         Flexible(child: Text(nextText, overflow: TextOverflow.ellipsis, style: TextStyle(color: next != null ? kRed : Colors.white24, fontSize: 10, fontWeight: FontWeight.w700))),
        ]),
      ]),
    );
  }
+
  Widget _timeline() {
    return LayoutBuilder(builder: (context, constraints) {
      return SizedBox(
-       height: 34,
+       height: 26,
        child: Stack(children: [
-         Positioned(top: 16, left: 0, right: 0, child: Container(height: 2, color: kLine)),
-         Positioned(top: 8, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 18, color: kRed)),
+         Positioned(top: 13, left: 0, right: 0, child: Container(height: 1, color: kLine)),
+         Positioned(top: 5, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 17, color: kRed)),
          ...List.generate(9, (i) => Positioned(
            left: constraints.maxWidth * i / 8 - .5,
-           top: 13,
-           child: Container(width: 1, height: 8, color: Colors.white12),
+           top: 10,
+           child: Container(width: 1, height: 7, color: Colors.white12),
          )),
        ]),
      );
    });
  }
- Widget _cueDeck()=>Container(padding:const EdgeInsets.all(20),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[_label('SHOW CUES'),const Spacer(),Text('$cueCount CUES',style:const TextStyle(color:Colors.white38,fontSize:10))]),const SizedBox(height:16),Expanded(child:Row(children:[Expanded(child:_cueCard('CURRENT',current,false)),const SizedBox(width:12),Expanded(child:_cueCard('NEXT',next,true))]))]));
- Widget _cueCard(String title,CueView? cue,bool upcoming){return Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(color:upcoming?kRed.withValues(alpha:.055):Colors.white.withValues(alpha:.025),borderRadius:BorderRadius.circular(12),border:Border.all(color:upcoming&&cue!=null?kRed.withValues(alpha:.42):kLine)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[_label(title),const Spacer(),if(cue!=null)_pill(cue.department.isEmpty?'CUE':cue.department,upcoming?kRed:Colors.white54)]),const Spacer(),Text(cue==null?'—':cue.name,overflow:TextOverflow.ellipsis,maxLines:2,style:TextStyle(fontSize:upcoming?30:26,fontWeight:FontWeight.w700,height:1.05,color:cue==null?Colors.white24:Colors.white)),const SizedBox(height:12),if(cue!=null)Text('#${cue.id}   ${clock(cue.timeNs)}',style:const TextStyle(color:Colors.white38,fontFeatures:[FontFeature.tabularFigures()])),const Spacer(),if(upcoming)Text(cue==null?'READY':'IN  ${clock(countdown)}',style:TextStyle(fontSize:cue==null?13:25,fontWeight:FontWeight.w800,color:cue==null?Colors.white38:kRed,fontFeatures:const [FontFeature.tabularFigures()]))]));}
- Widget _rightRail()=>Column(children:[Expanded(child:_statusPanel()),const SizedBox(height:14),Expanded(child:_sourcePanel())]);
- Widget _statusPanel()=>Container(padding:const EdgeInsets.all(20),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('SHOW STATUS'),const Spacer(),_metric('SYNC',locked?'READY':connected?'ACQUIRING':'OFFLINE',locked?Colors.greenAccent:Colors.orangeAccent),const SizedBox(height:18),_metric('TRANSPORT',transport==1?'PLAYING':transport==2?'PAUSED':'STOPPED',transport==1?Colors.greenAccent:transport==2?Colors.orangeAccent:kRed),const SizedBox(height:18),_metric('CUES','$cueCount',Colors.white),const Spacer()]));
- Widget _sourcePanel()=>Container(padding:const EdgeInsets.all(20),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[_label('TIME SOURCE'),const Spacer(),Row(children:[Container(width:9,height:9,decoration:BoxDecoration(shape:BoxShape.circle,color:connected?Colors.greenAccent:Colors.white24)),const SizedBox(width:12),Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Text(source.isEmpty?'NO SOURCE':source,style:const TextStyle(fontSize:17,fontWeight:FontWeight.w700)),const SizedBox(height:4),Text(connected?'PRIMARY • CONNECTED':'WAITING FOR SOURCE',style:const TextStyle(color:Colors.white38,fontSize:10))]))]),const Spacer(),Text(native?'CORE v0.5.0':'CORE NOT LOADED',style:const TextStyle(color:Colors.white24,fontSize:10))]));
- Widget _placeholder()=>Center(child:Column(mainAxisSize:MainAxisSize.min,children:[const Icon(Icons.construction_rounded,size:36,color:Colors.white24),const SizedBox(height:12),Text(['SHOW','TIMELINE','CUES','SOURCES','SETTINGS'][page],style:const TextStyle(fontSize:18,fontWeight:FontWeight.w700)),const SizedBox(height:6),const Text('Workspace coming in the next UI iteration',style:TextStyle(color:Colors.white38))]));
- BoxDecoration _box()=>BoxDecoration(color:kPanel,borderRadius:BorderRadius.circular(14),border:Border.all(color:kLine));
- Widget _label(String s)=>Text(s,style:const TextStyle(color:Colors.white38,fontSize:10,fontWeight:FontWeight.w800,letterSpacing:1.2));
- Widget _pill(String s,Color c)=>Container(padding:const EdgeInsets.symmetric(horizontal:10,vertical:6),decoration:BoxDecoration(color:c.withValues(alpha:.1),borderRadius:BorderRadius.circular(20),border:Border.all(color:c.withValues(alpha:.14))),child:Text('●  $s',style:TextStyle(color:c,fontSize:10,fontWeight:FontWeight.w800)));
- Widget _metric(String a,String b,Color c)=>Row(children:[Expanded(child:Text(a,style:const TextStyle(color:Colors.white38,fontSize:10))),Text(b,style:TextStyle(color:c,fontSize:12,fontWeight:FontWeight.w800))]);
+
+ Widget _cueDeck({bool compact = false}) {
+   return Container(
+     padding: EdgeInsets.all(compact ? 14 : 18),
+     decoration: _box(),
+     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+       Row(children: [_label('SHOW CUES'), const Spacer(), Text('$cueCount CUES', style: const TextStyle(color: Colors.white38, fontSize: 10))]),
+       const SizedBox(height: 12),
+       Expanded(
+         child: Row(children: [
+           Expanded(child: _cueCard('CURRENT', current, false, compact)),
+           const SizedBox(width: 10),
+           Expanded(child: _cueCard('NEXT', next, true, compact)),
+         ]),
+       ),
+     ]),
+   );
+ }
+
+ Widget _cueCard(String title, CueView? cue, bool upcoming, bool compact) {
+   return Container(
+     padding: EdgeInsets.all(compact ? 14 : 18),
+     decoration: BoxDecoration(
+       color: upcoming ? kRed.withValues(alpha: .055) : Colors.white.withValues(alpha: .025),
+       borderRadius: BorderRadius.circular(12),
+       border: Border.all(color: upcoming && cue != null ? kRed.withValues(alpha: .42) : kLine),
+     ),
+     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+       Row(children: [
+         _label(title),
+         const Spacer(),
+         if (cue != null) Flexible(child: _pill(cue.department.isEmpty ? 'CUE' : cue.department, upcoming ? kRed : Colors.white54)),
+       ]),
+       const Spacer(),
+       Text(
+         cue == null ? '—' : cue.name,
+         overflow: TextOverflow.ellipsis,
+         maxLines: 2,
+         style: TextStyle(fontSize: compact ? 21 : (upcoming ? 27 : 24), fontWeight: FontWeight.w700, height: 1.05, color: cue == null ? Colors.white24 : Colors.white),
+       ),
+       const SizedBox(height: 8),
+       if (cue != null) Text('#${cue.id}   ${clock(cue.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
+       const Spacer(),
+       if (upcoming)
+         FittedBox(
+           fit: BoxFit.scaleDown,
+           alignment: Alignment.centerLeft,
+           child: Text(
+             cue == null ? 'READY' : 'IN  ${clock(countdown)}',
+             style: TextStyle(fontSize: compact ? 19 : 24, fontWeight: FontWeight.w800, color: cue == null ? Colors.white38 : kRed, fontFeatures: const [FontFeature.tabularFigures()]),
+           ),
+         ),
+     ]),
+   );
+ }
+
+ Widget _rightRail() {
+   return Column(children: [
+     Expanded(child: _statusPanel()),
+     const SizedBox(height: 14),
+     Expanded(child: _sourcePanel()),
+   ]);
+ }
+
+ Widget _statusPanel() {
+   final syncText = locked ? 'READY' : connected ? 'ACQUIRING' : 'OFFLINE';
+   final syncColor = locked ? Colors.greenAccent : connected ? Colors.orangeAccent : Colors.white38;
+   final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
+   final transportColor = transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed;
+   return Container(
+     padding: const EdgeInsets.all(18),
+     decoration: _box(),
+     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+       _label('SHOW STATUS'),
+       const Spacer(),
+       _metric('SYNC', syncText, syncColor),
+       const SizedBox(height: 12),
+       _metric('TRANSPORT', transportText, transportColor),
+       const SizedBox(height: 12),
+       _metric('CUES', '$cueCount', Colors.white),
+       const Spacer(),
+     ]),
+   );
+ }
+
+ Widget _sourcePanel() {
+   return Container(
+     padding: const EdgeInsets.all(18),
+     decoration: _box(),
+     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+       _label('TIME SOURCE'),
+       const Spacer(),
+       Row(children: [
+         Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? Colors.greenAccent : Colors.white24)),
+         const SizedBox(width: 12),
+         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+           Text(source.isEmpty ? 'NO SOURCE' : source, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
+           const SizedBox(height: 3),
+           Text(connected ? 'PRIMARY • CONNECTED' : 'WAITING FOR SOURCE', style: const TextStyle(color: Colors.white38, fontSize: 9)),
+         ])),
+       ]),
+       const Spacer(),
+       Text(native ? 'CORE v0.5.0' : 'CORE NOT LOADED', style: const TextStyle(color: Colors.white24, fontSize: 9)),
+     ]),
+   );
+ }
+
+ Widget _compactStatus() {
+   final syncText = locked ? 'SYNC READY' : connected ? 'SYNCING' : 'OFFLINE';
+   final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
+   return Container(
+     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+     decoration: _box(),
+     child: Row(children: [
+       _statusDot(connected ? Colors.greenAccent : Colors.white24),
+       const SizedBox(width: 9),
+       Text(source.isEmpty ? 'NO SOURCE' : source, style: const TextStyle(fontWeight: FontWeight.w700)),
+       const SizedBox(width: 20),
+       Container(width: 1, height: 28, color: kLine),
+       const SizedBox(width: 20),
+       _miniStatus('SYNC', syncText, locked ? Colors.greenAccent : Colors.orangeAccent),
+       const SizedBox(width: 28),
+       _miniStatus('TRANSPORT', transportText, transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed),
+       const SizedBox(width: 28),
+       _miniStatus('CUES', '$cueCount', Colors.white),
+       const Spacer(),
+       Text(native ? 'CORE v0.5.0' : 'CORE NOT LOADED', style: const TextStyle(color: Colors.white24, fontSize: 9)),
+     ]),
+   );
+ }
+
+ Widget _miniStatus(String label, String value, Color color) {
+   return Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+     Text(label, style: const TextStyle(color: Colors.white30, fontSize: 8, fontWeight: FontWeight.w700)),
+     const SizedBox(height: 3),
+     Text(value, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800)),
+   ]);
+ }
+
+ Widget _statusDot(Color color) => Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color));
+
+ Widget _placeholder() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
+   const Icon(Icons.construction_rounded, size: 36, color: Colors.white24),
+   const SizedBox(height: 12),
+   Text(['SHOW', 'TIMELINE', 'CUES', 'SOURCES', 'SETTINGS'][page], style: const TextStyle(fontSize: 18, fontWeight: FontWeight.w700)),
+   const SizedBox(height: 6),
+   const Text('Workspace coming in the next UI iteration', style: TextStyle(color: Colors.white38)),
+ ]));
+
+ BoxDecoration _box() => BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(14), border: Border.all(color: kLine));
+ Widget _label(String s) => Text(s, style: const TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.2));
+ Widget _pill(String s, Color color) => Container(
+   padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
+   decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withValues(alpha: .14))),
+   child: Text('●  $s', overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+ );
+ Widget _metric(String label, String value, Color color) => Row(children: [
+   Expanded(child: Text(label, style: const TextStyle(color: Colors.white38, fontSize: 9))),
+   Flexible(child: Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800))),
+ ]);
+
 }
