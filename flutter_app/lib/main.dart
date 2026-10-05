@@ -198,7 +198,7 @@ class _WorkspaceState extends State<Workspace>{
        Expanded(child:LayoutBuilder(builder:(context,b){
          final w=b.maxWidth,h=b.maxHeight;
          final markerTop=compact?8.0:10.0;
-         final waveformTop=h*(compact?.32:.28);
+         final waveformTop=h*(compact ? .32 : .28);
          final waveformBottom=h-26;
          return Stack(clipBehavior:Clip.hardEdge,children:[
            Positioned.fill(child:CustomPaint(painter:_LiveWaveformPainter(positionNs:pos))),
