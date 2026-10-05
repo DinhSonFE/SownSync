@@ -26,7 +26,7 @@ struct MarkerBoundaryPacket { WireHeader h; std::uint32_t generation,count; };
 static bool validHeader(const WireHeader& h,int len){return std::memcmp(h.magic,"SOWN",4)==0&&h.version==3&&h.size<=static_cast<std::uint32_t>(len);}
 const char* toString(SyncHealth h){switch(h){case SyncHealth::NoSignal:return "NO SIGNAL";case SyncHealth::Locked:return "LOCKED";case SyncHealth::Holdover:return "HOLDOVER";case SyncHealth::Degraded:return "DEGRADED";case SyncHealth::Lost:return "LOST";}return "UNKNOWN";}
 
-ReaperSyncSource::ReaperSyncSource(unsigned short port):port_(port){state_.source=SyncSource::Reaper;state_.fps=25.0;latencyWindow_.reserve(512);}
+ReaperSyncSource::ReaperSyncSource(unsigned short port):port_(port){state_.source=SyncSource::Reaper;state_.fps=25.0;latencyWindow_.reserve(512);phaseLearningWindow_.reserve(96);}
 ReaperSyncSource::~ReaperSyncSource(){stop();}
 
 void ReaperSyncSource::resetEstimatorUnlocked(){
@@ -47,6 +47,7 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  sourceSlopeEma_=1.0;
  phaseBaselineMs_=0.0;
  residualSquareEma_=0.0;
+ phaseLearningWindow_.clear();
  phaseLockSamples_=0;
  phaseLocked_=false;
  precision_.phaseBaselineMs=0.0;
@@ -134,17 +135,33 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    const double phaseErrorMs=(timelineSec-senderSec)*1000.0;
    precision_.phaseErrorMs=phaseErrorMs;
 
-   // Phase Lock learns the stable sampling offset between REAPER's play cursor
-   // and the sender monotonic timestamp. It is deliberately NOT a hard-coded
-   // compensation value. Only stable, non-seek samples are admitted.
-   if(std::abs(phaseErrorMs)<50.0){
-    if(phaseLockSamples_==0) phaseBaselineMs_=phaseErrorMs;
-    else {
-     const double learnAlpha=phaseLocked_?0.002:0.04;
-     phaseBaselineMs_ += (phaseErrorMs-phaseBaselineMs_)*learnAlpha;
+   // Robust Phase Baseline:
+   // 1) Ignore startup settling and obvious discontinuities.
+   // 2) Learn from a bounded rolling window.
+   // 3) Use a trimmed median/mean so scheduler spikes cannot drag the baseline.
+   // 4) After lock, baseline follows only very slowly and only for inliers.
+   if(settlingPackets_<=0 && std::abs(phaseErrorMs)<50.0){
+    if(!phaseLocked_){
+     phaseLearningWindow_.push_back(phaseErrorMs);
+     if(phaseLearningWindow_.size()>96) phaseLearningWindow_.erase(phaseLearningWindow_.begin());
+     phaseLockSamples_=(int)phaseLearningWindow_.size();
+     if(phaseLearningWindow_.size()>=64){
+      auto w=phaseLearningWindow_;
+      std::sort(w.begin(),w.end());
+      const std::size_t trim=w.size()/8;
+      const auto first=w.begin()+static_cast<std::ptrdiff_t>(trim);
+      const auto last=w.end()-static_cast<std::ptrdiff_t>(trim);
+      phaseBaselineMs_=std::accumulate(first,last,0.0)/(double)std::distance(first,last);
+      std::vector<double> dev;dev.reserve(w.size());
+      for(double v:w)dev.push_back(std::abs(v-phaseBaselineMs_));
+      std::sort(dev.begin(),dev.end());
+      const double mad=dev[dev.size()/2];
+      if(mad<6.0) phaseLocked_=true;
+     }
+    }else{
+     const double delta=phaseErrorMs-phaseBaselineMs_;
+     if(std::abs(delta)<8.0) phaseBaselineMs_+=delta*0.001;
     }
-    ++phaseLockSamples_;
-    if(phaseLockSamples_>=64) phaseLocked_=true;
    }
    const double residualMs=phaseLocked_?(phaseErrorMs-phaseBaselineMs_):0.0;
    precision_.phaseBaselineMs=phaseBaselineMs_;
@@ -156,7 +173,7 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    if(seek){
     precision_.seekEvents++;precision_.hardSnaps++;
     clockRateScale_=1.0;driftPpmFiltered_=0.0;sourceSlopeEma_=1.0;settlingPackets_=8;
-    phaseBaselineMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
+    phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
     precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;precision_.phaseLocked=false;
     errorSquareEma_=0.0;precision_.errorRmsMs=0.0;precision_.errorPeakMs=0.0;
    }else if(settlingPackets_>0){
@@ -185,7 +202,7 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    }
   }else if(previousTransport_!=tr){
    settlingPackets_=8;
-   phaseBaselineMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
+   phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
    precision_.phaseErrorMs=0.0;precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;
    precision_.phaseLocked=false;precision_.predictionErrorMs=0.0;precision_.correctionMs=0.0;
   }
