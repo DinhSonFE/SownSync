@@ -21,11 +21,12 @@ namespace sown {
 #pragma pack(push,1)
 struct WireHeader { char magic[4]; std::uint16_t version,type; std::uint32_t size; };
 struct StatePacket { WireHeader h; std::uint64_t sequence; std::uint64_t senderQpc,senderQpcFreq; double positionSec,rate,fps; std::uint8_t transport,reserved[7]; char project[128]; };
-struct MarkerPacket { WireHeader h; std::uint32_t generation,id; double positionSec; std::uint8_t isRegion,reserved[7]; char name[256]; };
+struct MarkerPacket { WireHeader h; std::uint32_t generation,id; double positionSec,endSec; std::uint32_t color; std::uint8_t isRegion,reserved[3]; char name[256]; };
+struct ProjectStatePacket { WireHeader h; std::uint64_t sequence; double cursorSec,lengthSec,tempo; std::uint32_t stateChangeCount; std::uint8_t transport,reserved[3]; };
 struct MarkerBoundaryPacket { WireHeader h; std::uint32_t generation,count; };
 #pragma pack(pop)
 
-static bool validHeader(const WireHeader& h,int len){return std::memcmp(h.magic,"SOWN",4)==0&&h.version==3&&h.size<=static_cast<std::uint32_t>(len);}
+static bool validHeader(const WireHeader& h,int len){return std::memcmp(h.magic,"SOWN",4)==0&&h.version==4&&h.size<=static_cast<std::uint32_t>(len);}
 const char* toString(SyncHealth h){switch(h){case SyncHealth::NoSignal:return "NO SIGNAL";case SyncHealth::Locked:return "LOCKED";case SyncHealth::Holdover:return "HOLDOVER";case SyncHealth::Degraded:return "DEGRADED";case SyncHealth::Lost:return "LOST";}return "UNKNOWN";}
 const char* toString(PhaseAcquisitionState s){switch(s){case PhaseAcquisitionState::Warmup:return "WARMUP";case PhaseAcquisitionState::Acquiring:return "ACQUIRING";case PhaseAcquisitionState::Stable:return "STABLE";case PhaseAcquisitionState::Locked:return "LOCKED";case PhaseAcquisitionState::Tracking:return "TRACKING";}return "UNKNOWN";}
 
@@ -176,6 +177,10 @@ SyncState ReaperSyncSource::getState()const{
 }
 std::vector<Cue> ReaperSyncSource::markerCues()const{std::lock_guard l(mutex_);return markers_;}
 std::string ReaperSyncSource::projectName()const{std::lock_guard l(mutex_);return projectName_;}
+double ReaperSyncSource::tempo()const{std::lock_guard l(mutex_);return tempo_;}
+TimeNs ReaperSyncSource::projectLengthNs()const{std::lock_guard l(mutex_);return projectLengthNs_;}
+TimeNs ReaperSyncSource::editCursorNs()const{std::lock_guard l(mutex_);return editCursorNs_;}
+std::uint32_t ReaperSyncSource::projectRevision()const{std::lock_guard l(mutex_);return projectRevision_;}
 double ReaperSyncSource::packetAgeMs()const{std::lock_guard l(mutex_);updateHealthUnlocked(Clock::now());return precision_.packetAgeMs;}
 PrecisionStats ReaperSyncSource::precisionStats()const{std::lock_guard l(mutex_);auto now=Clock::now();updateHealthUnlocked(now);precision_.uptimeSec=std::chrono::duration<double>(now-startedAt_).count();return precision_;}
 
@@ -492,7 +497,7 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
   }
   state_.source=SyncSource::Reaper;state_.sequence=p.sequence;state_.playbackRate=p.rate;state_.fps=p.fps>0?p.fps:25;state_.transport=tr;lastPacket_=now;projectName_=std::string(p.project,std::char_traits<char>::length(p.project));updateHealthUnlocked(now);
  }else if(h.type==2&&len>=(int)sizeof(MarkerBoundaryPacket)){auto&p=*(const MarkerBoundaryPacket*)d;markerGeneration_=p.generation;markerBuild_.clear();markerBuild_.reserve(p.count);}
- else if(h.type==3&&len>=(int)sizeof(MarkerPacket)){auto&p=*(const MarkerPacket*)d;if(p.generation!=markerGeneration_||p.isRegion)return;std::string raw(p.name,std::char_traits<char>::length(p.name)),dept="ALL",name=raw;if(auto x=raw.find('|');x!=std::string::npos){dept=raw.substr(0,x);name=raw.substr(x+1);}markerBuild_.push_back({p.id,secondsToNs(p.positionSec),dept,name,secondsToNs(5)});}
+ else if(h.type==3&&len>=(int)sizeof(MarkerPacket)){auto&p=*(const MarkerPacket*)d;if(p.generation!=markerGeneration_||p.isRegion)return;std::string raw(p.name,std::char_traits<char>::length(p.name)),dept="ALL",name=raw;if(auto x=raw.find('|');x!=std::string::npos){dept=raw.substr(0,x);name=raw.substr(x+1);}Cue q{};q.id=p.id;q.timeNs=secondsToNs(p.positionSec);q.department=dept;q.name=name;q.warningNs=secondsToNs(5);q.endNs=secondsToNs(p.endSec);q.color=p.color;q.isRegion=p.isRegion!=0;markerBuild_.push_back(std::move(q));}
  else if(h.type==4&&len>=(int)sizeof(MarkerBoundaryPacket)){auto&p=*(const MarkerBoundaryPacket*)d;if(p.generation==markerGeneration_){std::sort(markerBuild_.begin(),markerBuild_.end(),[](auto&a,auto&b){return a.timeNs<b.timeNs;});markers_=markerBuild_;}}
 }
 }
