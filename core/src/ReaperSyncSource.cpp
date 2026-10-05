@@ -444,15 +444,38 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
   const double errMs=(reconnect||authoritativeNonPlaying)?0.0:recoveryErrMs;
   updatePrecision(p.sequence,p.senderQpc,p.senderQpcFreq,pos,tr,now);
   const bool discontinuity=(state_.transport==TransportState::Playing&&tr==TransportState::Playing&&std::abs(errMs)>150.0);
-  if(discontinuity||state_.transport!=tr){anchorPosition_=pos;anchorLocal_=now;}
-  else if(tr==TransportState::Playing){
+  const bool transportChanged=state_.transport!=tr;
+  if(discontinuity){
+   anchorPosition_=pos;anchorLocal_=now;
+   stoppedCandidatePackets_=0;
+  }else if(transportChanged){
+   // The first STOPPED/PAUSED packet is authoritative: freeze immediately.
+   anchorPosition_=pos;anchorLocal_=now;
+   stoppedCandidatePosition_=pos;stoppedCandidatePackets_=1;
+   recoveringFromGap_=false;
+  }else if(tr==TransportState::Playing){
    double alpha=std::abs(errMs)<2.0?0.08:(std::abs(errMs)<20.0?0.25:0.65);
-   // After HOLDOVER/DEGRADED recovery, slew back gently instead of applying
-   // the normal large-error correction in one packet.
    if(recoveringFromGap_)alpha=std::min(alpha,0.12);
    anchorPosition_=predicted+static_cast<TimeNs>((double)(pos-predicted)*alpha);anchorLocal_=now;
    recoveringFromGap_=false;
-  }else{anchorPosition_=pos;anchorLocal_=now;recoveringFromGap_=false;}
+   stoppedCandidatePackets_=0;
+  }else{
+   // V0.2.8.3: while STOPPED, never chase a continuously moving source value.
+   // A real cursor seek becomes stable for consecutive packets, then is accepted.
+   constexpr TimeNs kStoppedStableToleranceNs=secondsToNs(0.002);
+   constexpr int kStoppedStablePackets=3;
+   if(std::llabs(pos-stoppedCandidatePosition_)<=kStoppedStableToleranceNs){
+    ++stoppedCandidatePackets_;
+   }else{
+    stoppedCandidatePosition_=pos;
+    stoppedCandidatePackets_=1;
+   }
+   if(stoppedCandidatePackets_>=kStoppedStablePackets){
+    anchorPosition_=stoppedCandidatePosition_;
+    anchorLocal_=now;
+   }
+   recoveringFromGap_=false;
+  }
   state_.source=SyncSource::Reaper;state_.sequence=p.sequence;state_.playbackRate=p.rate;state_.fps=p.fps>0?p.fps:25;state_.transport=tr;lastPacket_=now;projectName_=std::string(p.project,std::char_traits<char>::length(p.project));updateHealthUnlocked(now);
  }else if(h.type==2&&len>=(int)sizeof(MarkerBoundaryPacket)){auto&p=*(const MarkerBoundaryPacket*)d;markerGeneration_=p.generation;markerBuild_.clear();markerBuild_.reserve(p.count);}
  else if(h.type==3&&len>=(int)sizeof(MarkerPacket)){auto&p=*(const MarkerPacket*)d;if(p.generation!=markerGeneration_||p.isRegion)return;std::string raw(p.name,std::char_traits<char>::length(p.name)),dept="ALL",name=raw;if(auto x=raw.find('|');x!=std::string::npos){dept=raw.substr(0,x);name=raw.substr(x+1);}markerBuild_.push_back({p.id,secondsToNs(p.positionSec),dept,name,secondsToNs(5)});}
