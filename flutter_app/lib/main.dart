@@ -111,8 +111,8 @@ class _WorkspaceState extends State<Workspace>{
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    return Container(
-     height: compact ? 166 : wide ? 205 : 190,
-     padding: EdgeInsets.fromLTRB(compact ? 18 : 28, 16, compact ? 18 : 28, 14),
+     height: compact ? 158 : wide ? 196 : 182,
+     padding: EdgeInsets.fromLTRB(compact ? 18 : 28, 12, compact ? 18 : 28, 10),
      decoration: _box(),
      child: Column(children: [
        Row(children: [
@@ -123,7 +123,7 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontFamily: 'Cascadia Mono', fontSize: compact ? 64 : wide ? 104 : 86, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
+         child: Text(clock(pos), style: TextStyle(fontFamily: 'Digital-7', fontFamilyFallback: const ['DSEG7 Classic','Seven Segment','Cascadia Mono'], fontSize: compact ? 58 : wide ? 94 : 80, fontWeight: FontWeight.w400, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
        ),
        const SizedBox(height: 2),
        Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
@@ -264,7 +264,7 @@ class _WorkspaceState extends State<Workspace>{
          if (has) _pill(next!.department.isEmpty ? 'CUE' : next!.department, kRed),
        ]),
        const Spacer(),
-       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 22 : 32, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
+       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 20 : 30, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
        if (has) ...[
          const SizedBox(height: 8),
          Text('#${next!.id}   ${clock(next!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
@@ -275,7 +275,7 @@ class _WorkspaceState extends State<Workspace>{
        FittedBox(
          fit: BoxFit.scaleDown,
          alignment: Alignment.centerLeft,
-         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 30 : 44, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
+         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 26 : 40, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
        ),
      ]),
    );
