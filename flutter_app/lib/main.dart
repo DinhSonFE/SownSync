@@ -12,24 +12,26 @@ typedef InitN=Int32 Function(); typedef InitD=int Function(); typedef ShutN=Void
 typedef StateN=Int32 Function(Pointer<NativeState>); typedef StateD=int Function(Pointer<NativeState>);
 typedef CueN=Int32 Function(Pointer<NativeCue>); typedef CueD=int Function(Pointer<NativeCue>);
 typedef NextN=Int32 Function(Pointer<NativeCue>,Pointer<Int64>); typedef NextD=int Function(Pointer<NativeCue>,Pointer<Int64>);
+typedef WaveN=Int32 Function(Pointer<Float>,Int32,Pointer<Int64>,Pointer<Int64>); typedef WaveD=int Function(Pointer<Float>,int,Pointer<Int64>,Pointer<Int64>);
 typedef CountN=Int32 Function(); typedef CountD=int Function(); typedef CueAtN=Int32 Function(Int32,Pointer<NativeCue>); typedef CueAtD=int Function(int,Pointer<NativeCue>); typedef StrN=Pointer<Utf8> Function(); typedef StrD=Pointer<Utf8> Function();
 
 class CueView{final int id,timeNs,endNs,color;final bool isRegion;final String department,name;const CueView(this.id,this.timeNs,this.department,this.name,{this.endNs=0,this.color=0,this.isRegion=false});}
 String _fixed(Array<Uint8> a,int n){final b=<int>[];for(var i=0;i<n&&a[i]!=0;i++)b.add(a[i]);return utf8.decode(b, allowMalformed:true);}
 class CoreBridge{
- late DynamicLibrary l;late InitD init;late ShutD shut;late StateD state;late CueD current;late NextD next;late CountD count;late CueAtD cueAt;late StrD project,source;bool loaded=false;
- bool open(){try{l=DynamicLibrary.open('sown_core_api.dll');init=l.lookupFunction<InitN,InitD>('sown_init');shut=l.lookupFunction<ShutN,ShutD>('sown_shutdown');state=l.lookupFunction<StateN,StateD>('sown_get_state');current=l.lookupFunction<CueN,CueD>('sown_get_current_cue');next=l.lookupFunction<NextN,NextD>('sown_get_next_cue');count=l.lookupFunction<CountN,CountD>('sown_get_cue_count');cueAt=l.lookupFunction<CueAtN,CueAtD>('sown_get_cue_at');project=l.lookupFunction<StrN,StrD>('sown_get_project_name');source=l.lookupFunction<StrN,StrD>('sown_get_active_source');loaded=init()==1;return loaded;}catch(_){return false;}}
+ late DynamicLibrary l;late InitD init;late ShutD shut;late StateD state;late CueD current;late NextD next;late CountD count;late CueAtD cueAt;late WaveD waveform;late StrD project,source;bool loaded=false;
+ bool open(){try{l=DynamicLibrary.open('sown_core_api.dll');init=l.lookupFunction<InitN,InitD>('sown_init');shut=l.lookupFunction<ShutN,ShutD>('sown_shutdown');state=l.lookupFunction<StateN,StateD>('sown_get_state');current=l.lookupFunction<CueN,CueD>('sown_get_current_cue');next=l.lookupFunction<NextN,NextD>('sown_get_next_cue');count=l.lookupFunction<CountN,CountD>('sown_get_cue_count');cueAt=l.lookupFunction<CueAtN,CueAtD>('sown_get_cue_at');waveform=l.lookupFunction<WaveN,WaveD>('sown_get_reaper_waveform');project=l.lookupFunction<StrN,StrD>('sown_get_project_name');source=l.lookupFunction<StrN,StrD>('sown_get_active_source');loaded=init()==1;return loaded;}catch(_){return false;}}
  CueView? cue(bool isNext,Pointer<Int64>? cd){final p=calloc<NativeCue>();try{final ok=isNext?next(p,cd!):current(p);if(ok!=1||p.ref.valid==0)return null;return CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192),endNs:p.ref.endNs,color:p.ref.color,isRegion:p.ref.isRegion!=0);}finally{calloc.free(p);}}
  List<CueView> allCues(){final out=<CueView>[];if(!loaded)return out;final n=count();for(var i=0;i<n;i++){final p=calloc<NativeCue>();try{if(cueAt(i,p)==1&&p.ref.valid!=0){out.add(CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192),endNs:p.ref.endNs,color:p.ref.color,isRegion:p.ref.isRegion!=0));}}finally{calloc.free(p);}}return out;}
+ List<double> wave(){if(!loaded)return const [];final p=calloc<Float>(256),s=calloc<Int64>(),d=calloc<Int64>();try{final n=waveform(p,256,s,d);return List<double>.generate(n,(i)=>p[i].toDouble(),growable:false);}finally{calloc.free(p);calloc.free(s);calloc.free(d);}}
  void close(){if(loaded)shut();}
 }
 void main()=>runApp(const SownApp());
 class SownApp extends StatelessWidget{const SownApp({super.key});@override Widget build(BuildContext c)=>MaterialApp(debugShowCheckedModeBanner:false,title:'SOWN SYNC',theme:ThemeData(useMaterial3:true,brightness:Brightness.dark,scaffoldBackgroundColor:kBg,colorScheme:ColorScheme.fromSeed(seedColor:kRed,brightness:Brightness.dark),fontFamily:'Arial'),home:const Workspace());}
 class Workspace extends StatefulWidget{const Workspace({super.key});@override State<Workspace> createState()=>_WorkspaceState();}
 class _WorkspaceState extends State<Workspace>{
- final core=CoreBridge();Timer? timer;bool native=false,connected=false,locked=false;int transport=0,pos=0,cueCount=0,countdown=0;double fps=0;String project='Waiting for show',source='REAPER';CueView? current,next;List<CueView> cueList=[];int page=0;
+ final core=CoreBridge();Timer? timer;bool native=false,connected=false,locked=false;int transport=0,pos=0,cueCount=0,countdown=0;double fps=0;String project='Waiting for show',source='REAPER';CueView? current,next;List<CueView> cueList=[];List<double> wavePeaks=[];int page=0;
  @override void initState(){super.initState();native=core.open();timer=Timer.periodic(const Duration(milliseconds:50),(_)=>poll());}
- void poll(){if(!native)return;final s=calloc<NativeState>(),cd=calloc<Int64>();try{if(core.state(s)==1&&mounted){final cv=core.cue(false,null),nv=core.cue(true,cd);setState((){connected=s.ref.connected!=0;locked=s.ref.locked!=0;transport=s.ref.transport;pos=s.ref.positionNs;fps=s.ref.fps;project=core.project().toDartString();source=core.source().toDartString().toUpperCase();cueCount=core.count();current=cv;next=nv;countdown=cd.value;cueList=core.allCues();});}}finally{calloc.free(s);calloc.free(cd);}}
+ void poll(){if(!native)return;final s=calloc<NativeState>(),cd=calloc<Int64>();try{if(core.state(s)==1&&mounted){final cv=core.cue(false,null),nv=core.cue(true,cd);setState((){connected=s.ref.connected!=0;locked=s.ref.locked!=0;transport=s.ref.transport;pos=s.ref.positionNs;fps=s.ref.fps;project=core.project().toDartString();source=core.source().toDartString().toUpperCase();cueCount=core.count();current=cv;next=nv;countdown=cd.value;cueList=core.allCues();wavePeaks=core.wave();});}}finally{calloc.free(s);calloc.free(cd);}}
  @override void dispose(){timer?.cancel();core.close();super.dispose();}
  String clock(int ns,{bool millis=true}){final ms=ns~/1000000,h=ms~/3600000,m=(ms~/60000)%60,s=(ms~/1000)%60,x=ms%1000;String p(int v,int n)=>v.toString().padLeft(n,'0');return millis?'${p(h,2)}:${p(m,2)}:${p(s,2)}.${p(x,3)}':'${p(h,2)}:${p(m,2)}:${p(s,2)}';}
  @override Widget build(BuildContext context){return Scaffold(body:Row(children:[_nav(),Expanded(child:Column(children:[_top(),Expanded(child:_pageBody())]))]));}
@@ -201,7 +203,7 @@ class _WorkspaceState extends State<Workspace>{
          final waveformTop=h*(compact ? .32 : .28);
          final waveformBottom=h-26;
          return Stack(clipBehavior:Clip.hardEdge,children:[
-           Positioned.fill(child:CustomPaint(painter:_LiveWaveformPainter(positionNs:pos))),
+           Positioned.fill(child:CustomPaint(painter:_LiveWaveformPainter(positionNs:pos,peaks:wavePeaks))),
            ...List.generate(9,(i)=>Positioned(left:(w-1)*i/8,top:waveformTop,bottom:22,child:Container(width:1,color:Colors.white.withValues(alpha:.045)))),
            ...visible.asMap().entries.map((entry){
              final q=entry.value;
@@ -576,22 +578,15 @@ class _WorkspaceState extends State<Workspace>{
 
 
 class _LiveWaveformPainter extends CustomPainter{
- final int positionNs;_LiveWaveformPainter({required this.positionNs});
+ final int positionNs;final List<double> peaks;_LiveWaveformPainter({required this.positionNs,required this.peaks});
  @override void paint(Canvas canvas,Size size){
    final top=size.height*.27,bottom=size.height-24,cy=(top+bottom)/2;
    canvas.drawRect(Rect.fromLTRB(0,top,size.width,bottom),Paint()..color=const Color(0xFF0B1112));
    canvas.drawLine(Offset(0,cy),Offset(size.width,cy),Paint()..color=const Color(0x3035D27F));
    final fill=Paint()..color=const Color(0x5535D27F);
    final edge=Paint()..color=const Color(0xCC35D27F)..strokeWidth=1;
-   final phase=(positionNs/1000000000.0)%17;
-   for(var x=0;x<size.width.toInt();x+=3){
-     final a=.18+.82*((x*37+((phase*11).floor()))%101)/101.0;
-     final b=.42+.58*((x*13+17)%47)/47.0;
-     final env=(a*b).clamp(.08,1.0);
-     final amp=(bottom-top)*.43*env;
-     canvas.drawRect(Rect.fromLTRB(x.toDouble(),cy-amp,x+2.0,cy+amp),fill);
-     canvas.drawLine(Offset(x.toDouble(),cy-amp),Offset(x.toDouble(),cy+amp),edge);
-   }
+   if(peaks.isEmpty){final tp=TextPainter(text:const TextSpan(text:'WAITING FOR REAPER WAVEFORM',style:TextStyle(color:Color(0x557A8798),fontSize:11,fontWeight:FontWeight.w700)),textDirection:TextDirection.ltr)..layout();tp.paint(canvas,Offset((size.width-tp.width)/2,cy-7));return;}
+   for(var x=0;x<size.width.toInt();x+=3){final idx=((x/size.width)*(peaks.length-1)).round().clamp(0,peaks.length-1);final env=peaks[idx].abs().clamp(0.0,1.0);final amp=(bottom-top)*.43*env;canvas.drawRect(Rect.fromLTRB(x.toDouble(),cy-amp,x+2.0,cy+amp),fill);canvas.drawLine(Offset(x.toDouble(),cy-amp),Offset(x.toDouble(),cy+amp),edge);}
  }
  @override bool shouldRepaint(covariant _LiveWaveformPainter old)=>old.positionNs!=positionNs;
 }
