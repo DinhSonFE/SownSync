@@ -83,30 +83,20 @@ class _WorkspaceState extends State<Workspace>{
          child: Column(children: [
            _hero(true),
            const SizedBox(height: 10),
-           SizedBox(height: 330, child: _cueDeck(compact: true, stacked: true)),
+           _operatorStrip(compact: true),
            const SizedBox(height: 10),
-           SizedBox(height: 76, child: _compactStatus(minimal: true)),
+           SizedBox(height: 410, child: _cueDeck(compact: true, stacked: true)),
          ]),
        );
      }
      return Padding(
-       padding: EdgeInsets.all(compact ? 12 : 18),
+       padding: EdgeInsets.all(compact ? 12 : 16),
        child: Column(children: [
          _hero(compact),
          SizedBox(height: compact ? 10 : 12),
-         Expanded(
-           child: Row(children: [
-             Expanded(child: _cueDeck(compact: compact)),
-             if (!compact) ...[
-               const SizedBox(width: 12),
-               SizedBox(width: 250, child: _rightRail()),
-             ],
-           ]),
-         ),
-         if (compact) ...[
-           const SizedBox(height: 10),
-           SizedBox(height: 76, child: _compactStatus()),
-         ],
+         _operatorStrip(compact: compact),
+         SizedBox(height: compact ? 10 : 12),
+         Expanded(child: _cueDeck(compact: compact)),
        ]),
      );
    });
@@ -117,10 +107,9 @@ class _WorkspaceState extends State<Workspace>{
    final paused = transport == 2;
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
-   final nextText = next != null ? 'NEXT  ${clock(countdown)}' : 'NO UPCOMING CUE';
    return Container(
-     height: compact ? 190 : 220,
-     padding: EdgeInsets.fromLTRB(compact ? 18 : 26, 16, compact ? 18 : 26, 14),
+     height: compact ? 176 : 190,
+     padding: EdgeInsets.fromLTRB(compact ? 18 : 24, 14, compact ? 18 : 24, 12),
      decoration: _box(),
      child: Column(children: [
        Row(children: [
@@ -131,190 +120,139 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(
-           clock(pos),
-           style: TextStyle(
-             fontSize: compact ? 46 : 60,
-             fontWeight: FontWeight.w300,
-             letterSpacing: 2,
-             fontFeatures: const [FontFeature.tabularFigures()],
-           ),
-         ),
+         child: Text(clock(pos), style: TextStyle(fontSize: compact ? 48 : 58, fontWeight: FontWeight.w300, letterSpacing: 2, fontFeatures: const [FontFeature.tabularFigures()])),
        ),
-       const SizedBox(height: 4),
-       Text('$fpsText FPS   •   $source MASTER', style: const TextStyle(color: Colors.white38, fontSize: 10, letterSpacing: 1.1)),
+       const SizedBox(height: 2),
+       Text('$fpsText FPS   •   $source MASTER', style: const TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.1)),
        const Spacer(),
        _timeline(),
-       const SizedBox(height: 5),
-       Row(children: [
-         Text(clock(pos, millis: false), style: const TextStyle(color: Colors.white38, fontSize: 10)),
-         const Spacer(),
-         Flexible(child: Text(nextText, overflow: TextOverflow.ellipsis, style: TextStyle(color: next != null ? kRed : Colors.white24, fontSize: 10, fontWeight: FontWeight.w700))),
-       ]),
      ]),
    );
  }
 
  Widget _timeline() {
-   return LayoutBuilder(builder: (context, constraints) {
-     return SizedBox(
-       height: 26,
-       child: Stack(children: [
-         Positioned(top: 13, left: 0, right: 0, child: Container(height: 1, color: kLine)),
-         Positioned(top: 5, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 17, color: kRed)),
-         ...List.generate(9, (i) => Positioned(
-           left: constraints.maxWidth * i / 8 - .5,
-           top: 10,
-           child: Container(width: 1, height: 7, color: Colors.white12),
-         )),
-       ]),
-     );
-   });
+   return LayoutBuilder(builder: (context, constraints) => SizedBox(
+     height: 22,
+     child: Stack(children: [
+       Positioned(top: 11, left: 0, right: 0, child: Container(height: 1, color: kLine)),
+       Positioned(top: 3, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 17, color: kRed)),
+       ...List.generate(9, (i) => Positioned(left: constraints.maxWidth * i / 8 - .5, top: 8, child: Container(width: 1, height: 7, color: Colors.white12))),
+     ]),
+   ));
+ }
+
+ Widget _operatorStrip({bool compact = false}) {
+   final syncText = locked ? 'READY' : connected ? 'ACQUIRING' : 'OFFLINE';
+   final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
+   final transportColor = transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed;
+   return Container(
+     height: compact ? 58 : 64,
+     padding: const EdgeInsets.symmetric(horizontal: 18),
+     decoration: _box(),
+     child: Row(children: [
+       _statusDot(connected ? Colors.greenAccent : Colors.white24),
+       const SizedBox(width: 10),
+       Flexible(child: Text(source.isEmpty ? 'NO SOURCE' : source, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w800))),
+       const SizedBox(width: 18),
+       _divider(),
+       const SizedBox(width: 18),
+       _miniStatus('SYNC', syncText, locked ? Colors.greenAccent : Colors.orangeAccent),
+       const SizedBox(width: 26),
+       _miniStatus('TRANSPORT', transportText, transportColor),
+       if (!compact) ...[
+         const SizedBox(width: 26),
+         _miniStatus('CUES', '$cueCount', Colors.white),
+       ],
+       const Spacer(),
+       if (next != null) ...[
+         const Text('NEXT IN', style: TextStyle(color: Colors.white30, fontSize: 8, fontWeight: FontWeight.w800)),
+         const SizedBox(width: 10),
+         Text(clock(countdown), style: const TextStyle(color: kRed, fontSize: 17, fontWeight: FontWeight.w900, fontFeatures: [FontFeature.tabularFigures()])),
+       ],
+     ]),
+   );
  }
 
  Widget _cueDeck({bool compact = false, bool stacked = false}) {
    return Container(
-     padding: EdgeInsets.all(compact ? 14 : 18),
+     padding: EdgeInsets.all(compact ? 12 : 16),
      decoration: _box(),
      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-       Row(children: [_label('SHOW CUES'), const Spacer(), Text('$cueCount CUES', style: const TextStyle(color: Colors.white38, fontSize: 10))]),
-       const SizedBox(height: 12),
+       Row(children: [_label('SHOW CUES'), const Spacer(), Text('$cueCount CUES', style: const TextStyle(color: Colors.white30, fontSize: 9))]),
+       const SizedBox(height: 10),
        Expanded(
          child: stacked
              ? Column(children: [
-                 Expanded(child: _cueCard('CURRENT', current, false, true)),
+                 Expanded(child: _currentCard(compact)),
                  const SizedBox(height: 8),
-                 Expanded(child: _cueCard('NEXT', next, true, true)),
+                 Expanded(flex: 2, child: _nextCard(compact)),
                ])
              : Row(children: [
-                 Expanded(flex: 4, child: _cueCard('CURRENT', current, false, compact)),
+                 Expanded(flex: 4, child: _currentCard(compact)),
                  const SizedBox(width: 10),
-                 Expanded(flex: 6, child: _cueCard('NEXT', next, true, compact)),
+                 Expanded(flex: 6, child: _nextCard(compact)),
                ]),
        ),
      ]),
    );
  }
 
- Widget _cueCard(String title, CueView? cue, bool upcoming, bool compact) {
+ Widget _currentCard(bool compact) {
    return Container(
      padding: EdgeInsets.all(compact ? 14 : 18),
+     decoration: BoxDecoration(color: Colors.white.withValues(alpha: .025), borderRadius: BorderRadius.circular(12), border: Border.all(color: kLine)),
+     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
+       Row(children: [_label('CURRENT'), const Spacer(), if (current != null) _pill(current!.department.isEmpty ? 'CUE' : current!.department, Colors.white54)]),
+       const Spacer(),
+       Text(current?.name ?? 'NO ACTIVE CUE', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 20 : 24, fontWeight: FontWeight.w700, color: current == null ? Colors.white24 : Colors.white)),
+       const SizedBox(height: 7),
+       if (current != null) Text('#${current!.id}   ${clock(current!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 10, fontFeatures: [FontFeature.tabularFigures()])),
+       const Spacer(),
+       const Text('NOW', style: TextStyle(color: Colors.white24, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.2)),
+     ]),
+   );
+ }
+
+ Widget _nextCard(bool compact) {
+   final has = next != null;
+   return Container(
+     padding: EdgeInsets.all(compact ? 16 : 22),
      decoration: BoxDecoration(
-       color: upcoming ? kRed.withValues(alpha: .055) : Colors.white.withValues(alpha: .025),
+       color: kRed.withValues(alpha: .065),
        borderRadius: BorderRadius.circular(12),
-       border: Border.all(color: upcoming && cue != null ? kRed.withValues(alpha: .42) : kLine),
+       border: Border.all(color: has ? kRed.withValues(alpha: .55) : kLine),
      ),
      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
        Row(children: [
-         _label(title),
+         _label('NEXT CUE'),
          const Spacer(),
-         if (cue != null) Flexible(child: _pill(cue.department.isEmpty ? 'CUE' : cue.department, upcoming ? kRed : Colors.white54)),
+         if (has) _pill(next!.department.isEmpty ? 'CUE' : next!.department, kRed),
        ]),
        const Spacer(),
-       Text(
-         cue == null ? '—' : cue.name,
-         overflow: TextOverflow.ellipsis,
-         maxLines: 2,
-         style: TextStyle(fontSize: compact ? 21 : (upcoming ? 27 : 24), fontWeight: FontWeight.w700, height: 1.05, color: cue == null ? Colors.white24 : Colors.white),
-       ),
-       const SizedBox(height: 8),
-       if (cue != null) Text('#${cue.id}   ${clock(cue.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
-       const Spacer(),
-       if (upcoming)
-         FittedBox(
-           fit: BoxFit.scaleDown,
-           alignment: Alignment.centerLeft,
-           child: Text(
-             cue == null ? 'READY' : 'IN  ${clock(countdown)}',
-             style: TextStyle(fontSize: compact ? 19 : 24, fontWeight: FontWeight.w800, color: cue == null ? Colors.white38 : kRed, fontFeatures: const [FontFeature.tabularFigures()]),
-           ),
-         ),
-     ]),
-   );
- }
-
- Widget _rightRail() {
-   return Column(children: [
-     Expanded(child: _statusPanel()),
-     const SizedBox(height: 14),
-     Expanded(child: _sourcePanel()),
-   ]);
- }
-
- Widget _statusPanel() {
-   final syncText = locked ? 'READY' : connected ? 'ACQUIRING' : 'OFFLINE';
-   final syncColor = locked ? Colors.greenAccent : connected ? Colors.orangeAccent : Colors.white38;
-   final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
-   final transportColor = transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed;
-   return Container(
-     padding: const EdgeInsets.all(18),
-     decoration: _box(),
-     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-       _label('SHOW STATUS'),
-       const Spacer(),
-       _metric('SYNC', syncText, syncColor),
-       const SizedBox(height: 12),
-       _metric('TRANSPORT', transportText, transportColor),
-       const SizedBox(height: 12),
-       _metric('CUES', '$cueCount', Colors.white),
-       const Spacer(),
-     ]),
-   );
- }
-
- Widget _sourcePanel() {
-   return Container(
-     padding: const EdgeInsets.all(18),
-     decoration: _box(),
-     child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-       _label('TIME SOURCE'),
-       const Spacer(),
-       Row(children: [
-         Container(width: 9, height: 9, decoration: BoxDecoration(shape: BoxShape.circle, color: connected ? Colors.greenAccent : Colors.white24)),
-         const SizedBox(width: 12),
-         Expanded(child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
-           Text(source.isEmpty ? 'NO SOURCE' : source, overflow: TextOverflow.ellipsis, style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w700)),
-           const SizedBox(height: 3),
-           Text(connected ? 'PRIMARY • CONNECTED' : 'WAITING FOR SOURCE', style: const TextStyle(color: Colors.white38, fontSize: 9)),
-         ])),
-       ]),
-       const Spacer(),
-       Text(native ? 'CORE v0.5.0' : 'CORE NOT LOADED', style: const TextStyle(color: Colors.white24, fontSize: 9)),
-     ]),
-   );
- }
-
- Widget _compactStatus({bool minimal = false}) {
-   final syncText = locked ? 'SYNC READY' : connected ? 'SYNCING' : 'OFFLINE';
-   final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
-   return Container(
-     padding: EdgeInsets.symmetric(horizontal: minimal ? 12 : 18, vertical: 10),
-     decoration: _box(),
-     child: Row(children: [
-       _statusDot(connected ? Colors.greenAccent : Colors.white24),
-       const SizedBox(width: 9),
-       Flexible(child: Text(source.isEmpty ? 'NO SOURCE' : source, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700))),
-       const SizedBox(width: 14),
-       _miniStatus('SYNC', syncText, locked ? Colors.greenAccent : Colors.orangeAccent),
-       if (!minimal) ...[
-         const SizedBox(width: 22),
-         _miniStatus('TRANSPORT', transportText, transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed),
-         const SizedBox(width: 22),
-         _miniStatus('CUES', '$cueCount', Colors.white),
+       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 26 : 34, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
+       if (has) ...[
+         const SizedBox(height: 8),
+         Text('#${next!.id}   ${clock(next!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
        ],
+       const Spacer(),
+       const Text('STANDBY', style: TextStyle(color: kRed, fontSize: 9, fontWeight: FontWeight.w900, letterSpacing: 1.4)),
+       const SizedBox(height: 5),
+       FittedBox(
+         fit: BoxFit.scaleDown,
+         alignment: Alignment.centerLeft,
+         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 32 : 44, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
+       ),
      ]),
    );
  }
 
- Widget _miniStatus(String label, String value, Color color) {
-   return Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-     Text(label, style: const TextStyle(color: Colors.white30, fontSize: 8, fontWeight: FontWeight.w700)),
-     const SizedBox(height: 3),
-     Text(value, style: TextStyle(color: color, fontSize: 11, fontWeight: FontWeight.w800)),
-   ]);
- }
-
+ Widget _divider() => Container(width: 1, height: 28, color: kLine);
  Widget _statusDot(Color color) => Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color));
+ Widget _miniStatus(String label, String value, Color color) => Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
+   Text(label, style: const TextStyle(color: Colors.white30, fontSize: 8, fontWeight: FontWeight.w700)),
+   const SizedBox(height: 2),
+   Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
+ ]);
 
  Widget _placeholder() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
    const Icon(Icons.construction_rounded, size: 36, color: Colors.white24),
