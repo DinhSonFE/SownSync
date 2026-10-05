@@ -25,6 +25,7 @@ struct MarkerBoundaryPacket { WireHeader h; std::uint32_t generation,count; };
 
 static bool validHeader(const WireHeader& h,int len){return std::memcmp(h.magic,"SOWN",4)==0&&h.version==3&&h.size<=static_cast<std::uint32_t>(len);}
 const char* toString(SyncHealth h){switch(h){case SyncHealth::NoSignal:return "NO SIGNAL";case SyncHealth::Locked:return "LOCKED";case SyncHealth::Holdover:return "HOLDOVER";case SyncHealth::Degraded:return "DEGRADED";case SyncHealth::Lost:return "LOST";}return "UNKNOWN";}
+const char* toString(PhaseAcquisitionState s){switch(s){case PhaseAcquisitionState::Warmup:return "WARMUP";case PhaseAcquisitionState::Acquiring:return "ACQUIRING";case PhaseAcquisitionState::Stable:return "STABLE";case PhaseAcquisitionState::Locked:return "LOCKED";case PhaseAcquisitionState::Tracking:return "TRACKING";}return "UNKNOWN";}
 
 ReaperSyncSource::ReaperSyncSource(unsigned short port):port_(port){state_.source=SyncSource::Reaper;state_.fps=25.0;latencyWindow_.reserve(512);phaseLearningWindow_.reserve(96);}
 ReaperSyncSource::~ReaperSyncSource(){stop();}
@@ -48,11 +49,18 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  phaseBaselineMs_=0.0;
  residualSquareEma_=0.0;
  phaseLearningWindow_.clear();
+ phaseState_=PhaseAcquisitionState::Warmup;
+ phaseStableWindows_=0;
+ phaseMadMs_=0.0;
  phaseLockSamples_=0;
  phaseLocked_=false;
  precision_.phaseBaselineMs=0.0;
  precision_.residualErrorMs=0.0;
  precision_.phaseLocked=false;
+ precision_.phaseState=phaseState_;
+ precision_.phaseMadMs=0.0;
+ precision_.phaseStableWindows=0;
+ precision_.phaseSamples=0;
  previousSenderQpc_=0;
  previousSenderQpcFreq_=0;
  settlingPackets_=8;
@@ -135,46 +143,76 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    const double phaseErrorMs=(timelineSec-senderSec)*1000.0;
    precision_.phaseErrorMs=phaseErrorMs;
 
-   // Robust Phase Baseline:
-   // 1) Ignore startup settling and obvious discontinuities.
-   // 2) Learn from a bounded rolling window.
-   // 3) Use a trimmed median/mean so scheduler spikes cannot drag the baseline.
-   // 4) After lock, baseline follows only very slowly and only for inliers.
-   if(settlingPackets_<=0 && std::abs(phaseErrorMs)<50.0){
+   // V0.2.5.3 Phase Acquisition State Machine.
+   // Raw phase remains observable during acquisition. A robust rolling window
+   // estimates the sampling bias; consecutive stable windows are required
+   // before lock. After lock, only residual error is used for tracking.
+   if(settlingPackets_>0){
+    phaseState_=PhaseAcquisitionState::Warmup;
+   }else if(std::abs(phaseErrorMs)<50.0){
     if(!phaseLocked_){
+     phaseState_=PhaseAcquisitionState::Acquiring;
      phaseLearningWindow_.push_back(phaseErrorMs);
-     if(phaseLearningWindow_.size()>96) phaseLearningWindow_.erase(phaseLearningWindow_.begin());
+     if(phaseLearningWindow_.size()>96)phaseLearningWindow_.erase(phaseLearningWindow_.begin());
      phaseLockSamples_=(int)phaseLearningWindow_.size();
-     if(phaseLearningWindow_.size()>=64){
+
+     if(phaseLearningWindow_.size()>=48){
       auto w=phaseLearningWindow_;
       std::sort(w.begin(),w.end());
-      const std::size_t trim=w.size()/8;
+      const std::size_t trim=std::max<std::size_t>(1,w.size()/8);
       const auto first=w.begin()+static_cast<std::ptrdiff_t>(trim);
       const auto last=w.end()-static_cast<std::ptrdiff_t>(trim);
-      phaseBaselineMs_=std::accumulate(first,last,0.0)/(double)std::distance(first,last);
+      const double candidate=std::accumulate(first,last,0.0)/(double)std::distance(first,last);
+
       std::vector<double> dev;dev.reserve(w.size());
-      for(double v:w)dev.push_back(std::abs(v-phaseBaselineMs_));
+      for(double v:w)dev.push_back(std::abs(v-candidate));
       std::sort(dev.begin(),dev.end());
-      const double mad=dev[dev.size()/2];
-      if(mad<6.0) phaseLocked_=true;
+      phaseMadMs_=dev[dev.size()/2];
+
+      // REAPER's ~32 Hz sampling can have several ms of quantisation noise.
+      // Require repeatable windows, not an unrealistically motionless phase.
+      const bool stableWindow=phaseMadMs_<8.0;
+      if(stableWindow){
+       phaseState_=PhaseAcquisitionState::Stable;
+       phaseBaselineMs_=candidate;
+       ++phaseStableWindows_;
+      }else{
+       phaseStableWindows_=0;
+      }
+
+      if(phaseStableWindows_>=4){
+       phaseLocked_=true;
+       phaseState_=PhaseAcquisitionState::Locked;
+       residualSquareEma_=0.0;
+       precision_.errorRmsMs=0.0;
+       precision_.errorPeakMs=0.0;
+      }
      }
     }else{
+     phaseState_=PhaseAcquisitionState::Tracking;
      const double delta=phaseErrorMs-phaseBaselineMs_;
-     if(std::abs(delta)<8.0) phaseBaselineMs_+=delta*0.001;
+     // Very slow baseline tracking; reject transient scheduler spikes.
+     if(std::abs(delta)<std::max(8.0,phaseMadMs_*4.0))phaseBaselineMs_+=delta*0.0005;
     }
    }
-   const double residualMs=phaseLocked_?(phaseErrorMs-phaseBaselineMs_):0.0;
+
+   // Never hide acquisition error: residual is meaningful even before lock.
+   const double residualMs=phaseErrorMs-phaseBaselineMs_;
    precision_.phaseBaselineMs=phaseBaselineMs_;
    precision_.residualErrorMs=residualMs;
    precision_.phaseLocked=phaseLocked_;
+   precision_.phaseState=phaseState_;
+   precision_.phaseMadMs=phaseMadMs_;
+   precision_.phaseStableWindows=phaseStableWindows_;
+   precision_.phaseSamples=phaseLockSamples_;
    precision_.predictionErrorMs=residualMs;
 
    const bool seek=std::abs(phaseErrorMs)>150.0;
    if(seek){
     precision_.seekEvents++;precision_.hardSnaps++;
     clockRateScale_=1.0;driftPpmFiltered_=0.0;sourceSlopeEma_=1.0;settlingPackets_=8;
-    phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
-    precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;precision_.phaseLocked=false;
+    phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseState_=PhaseAcquisitionState::Warmup;phaseStableWindows_=0;phaseMadMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
+    precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;precision_.phaseLocked=false;precision_.phaseState=PhaseAcquisitionState::Warmup;precision_.phaseMadMs=0.0;precision_.phaseStableWindows=0;precision_.phaseSamples=0;
     errorSquareEma_=0.0;precision_.errorRmsMs=0.0;precision_.errorPeakMs=0.0;
    }else if(settlingPackets_>0){
     --settlingPackets_;
@@ -193,7 +231,7 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
     precision_.driftPpm=driftPpmFiltered_;
     clockRateScale_=std::clamp(sourceSlopeEma_,0.998,1.002);
 
-    const double residualMs=phaseLocked_?(phaseErrorMs-phaseBaselineMs_):0.0;
+    const double residualMs=phaseErrorMs-phaseBaselineMs_;
     residualSquareEma_=residualSquareEma_*0.98+(residualMs*residualMs)*0.02;
     precision_.errorRmsMs=std::sqrt(residualSquareEma_);
     precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(residualMs));
@@ -202,7 +240,7 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    }
   }else if(previousTransport_!=tr){
    settlingPackets_=8;
-   phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
+   phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseState_=PhaseAcquisitionState::Warmup;phaseStableWindows_=0;phaseMadMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
    precision_.phaseErrorMs=0.0;precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;
    precision_.phaseLocked=false;precision_.predictionErrorMs=0.0;precision_.correctionMs=0.0;
   }
