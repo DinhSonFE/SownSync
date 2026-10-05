@@ -27,3 +27,6 @@ CTestTestfile.cmake
 # OS
 .DS_Store
 Thumbs.db
+
+# Runtime diagnostic logs
+logs/
