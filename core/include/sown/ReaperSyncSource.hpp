@@ -64,6 +64,9 @@ public:
     TimeNs projectLengthNs() const;
     TimeNs editCursorNs() const;
     std::uint32_t projectRevision() const;
+    std::vector<float> waveformPeaks() const;
+    TimeNs waveformStartNs() const;
+    TimeNs waveformStepNs() const;
     double packetAgeMs() const;
     PrecisionStats precisionStats() const;
     std::uint64_t packetsReceived() const { return packetsReceived_.load(); }
@@ -130,6 +133,8 @@ private:
     double tempo_{120.0};
     TimeNs projectLengthNs_{0}, editCursorNs_{0};
     std::uint32_t projectRevision_{0};
+    std::vector<float> waveformPeaks_;
+    TimeNs waveformStartNs_{0}, waveformStepNs_{0};
     std::atomic<std::uint64_t> packetsReceived_{0};
     std::ofstream phaseLog_;
     std::string phaseLogPath_;
