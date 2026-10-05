@@ -74,8 +74,49 @@ class _WorkspaceState extends State<Workspace>{
    );
  }
  Widget _show()=>Padding(padding:const EdgeInsets.all(20),child:Column(children:[_hero(),const SizedBox(height:14),Expanded(child:Row(children:[Expanded(flex:7,child:_cueDeck()),const SizedBox(width:14),Expanded(flex:3,child:_rightRail())]))]));
- Widget _hero(){final playing=transport==1,paused=transport==2;final tcColor=playing?Colors.greenAccent:paused?Colors.orangeAccent:kRed;return Container(height:270,padding:const EdgeInsets.fromLTRB(26,20,26,18),decoration:_box(),child:Column(children:[Row(children:[_label('MASTER TIMECODE'),const Spacer(),_pill(playing?'PLAYING':paused?'PAUSED':'STOPPED',tcColor)]),const Spacer(),Text(clock(pos),style:const TextStyle(fontSize:70,fontWeight:FontWeight.w300,letterSpacing:2,fontFeatures:[FontFeature.tabularFigures()])),const SizedBox(height:8),Text('${fps>0?fps.toStringAsFixed(2):'--'} FPS   •   $source MASTER',style:const TextStyle(color:Colors.white38,fontSize:11,letterSpacing:1.2)),const Spacer(),_timeline(),const SizedBox(height:12),Row(children:[Text(clock(pos,millis:false),style:const TextStyle(color:Colors.white38,fontSize:11)),const Spacer(),Text(next!=null?'NEXT  ${clock(countdown)}':'NO UPCOMING CUE',style:TextStyle(color:next!=null?kRed:Colors.white24,fontSize:11,fontWeight:FontWeight.w700))]) ]);}
- Widget _timeline()=>LayoutBuilder(builder:(c,x){return SizedBox(height:34,child:Stack(children:[Positioned(top:16,left:0,right:0,child:Container(height:2,color:kLine)),Positioned(top:8,left:x.maxWidth*.5-1,child:Container(width:2,height:18,color:kRed)),...List.generate(9,(i)=>Positioned(left:x.maxWidth*i/8-0.5,top:13,child:Container(width:1,height:8,color:Colors.white12)))]));});
+ Widget _hero() {
+   final playing = transport == 1;
+   final paused = transport == 2;
+   final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
+   final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
+   final nextText = next != null ? 'NEXT  ${clock(countdown)}' : 'NO UPCOMING CUE';
+   return Container(
+     height: 270,
+     padding: const EdgeInsets.fromLTRB(26, 20, 26, 18),
+     decoration: _box(),
+     child: Column(children: [
+       Row(children: [_label('MASTER TIMECODE'), const Spacer(), _pill(playing ? 'PLAYING' : paused ? 'PAUSED' : 'STOPPED', tcColor)]),
+       const Spacer(),
+       Text(clock(pos), style: const TextStyle(fontSize: 70, fontWeight: FontWeight.w300, letterSpacing: 2, fontFeatures: [FontFeature.tabularFigures()])),
+       const SizedBox(height: 8),
+       Text('$fpsText FPS   •   $source MASTER', style: const TextStyle(color: Colors.white38, fontSize: 11, letterSpacing: 1.2)),
+       const Spacer(),
+       _timeline(),
+       const SizedBox(height: 12),
+       Row(children: [
+         Text(clock(pos, millis: false), style: const TextStyle(color: Colors.white38, fontSize: 11)),
+         const Spacer(),
+         Text(nextText, style: TextStyle(color: next != null ? kRed : Colors.white24, fontSize: 11, fontWeight: FontWeight.w700)),
+       ]),
+     ]),
+   );
+ }
+ Widget _timeline() {
+   return LayoutBuilder(builder: (context, constraints) {
+     return SizedBox(
+       height: 34,
+       child: Stack(children: [
+         Positioned(top: 16, left: 0, right: 0, child: Container(height: 2, color: kLine)),
+         Positioned(top: 8, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 18, color: kRed)),
+         ...List.generate(9, (i) => Positioned(
+           left: constraints.maxWidth * i / 8 - .5,
+           top: 13,
+           child: Container(width: 1, height: 8, color: Colors.white12),
+         )),
+       ]),
+     );
+   });
+ }
  Widget _cueDeck()=>Container(padding:const EdgeInsets.all(20),decoration:_box(),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[_label('SHOW CUES'),const Spacer(),Text('$cueCount CUES',style:const TextStyle(color:Colors.white38,fontSize:10))]),const SizedBox(height:16),Expanded(child:Row(children:[Expanded(child:_cueCard('CURRENT',current,false)),const SizedBox(width:12),Expanded(child:_cueCard('NEXT',next,true))]))]));
  Widget _cueCard(String title,CueView? cue,bool upcoming){return Container(padding:const EdgeInsets.all(22),decoration:BoxDecoration(color:upcoming?kRed.withValues(alpha:.055):Colors.white.withValues(alpha:.025),borderRadius:BorderRadius.circular(12),border:Border.all(color:upcoming&&cue!=null?kRed.withValues(alpha:.42):kLine)),child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[Row(children:[_label(title),const Spacer(),if(cue!=null)_pill(cue.department.isEmpty?'CUE':cue.department,upcoming?kRed:Colors.white54)]),const Spacer(),Text(cue==null?'—':cue.name,overflow:TextOverflow.ellipsis,maxLines:2,style:TextStyle(fontSize:upcoming?30:26,fontWeight:FontWeight.w700,height:1.05,color:cue==null?Colors.white24:Colors.white)),const SizedBox(height:12),if(cue!=null)Text('#${cue.id}   ${clock(cue.timeNs)}',style:const TextStyle(color:Colors.white38,fontFeatures:[FontFeature.tabularFigures()])),const Spacer(),if(upcoming)Text(cue==null?'READY':'IN  ${clock(countdown)}',style:TextStyle(fontSize:cue==null?13:25,fontWeight:FontWeight.w800,color:cue==null?Colors.white38:kRed,fontFeatures:const [FontFeature.tabularFigures()]))]));}
  Widget _rightRail()=>Column(children:[Expanded(child:_statusPanel()),const SizedBox(height:14),Expanded(child:_sourcePanel())]);
