@@ -11,23 +11,24 @@ typedef InitN=Int32 Function(); typedef InitD=int Function(); typedef ShutN=Void
 typedef StateN=Int32 Function(Pointer<NativeState>); typedef StateD=int Function(Pointer<NativeState>);
 typedef CueN=Int32 Function(Pointer<NativeCue>); typedef CueD=int Function(Pointer<NativeCue>);
 typedef NextN=Int32 Function(Pointer<NativeCue>,Pointer<Int64>); typedef NextD=int Function(Pointer<NativeCue>,Pointer<Int64>);
-typedef CountN=Int32 Function(); typedef CountD=int Function(); typedef StrN=Pointer<Utf8> Function(); typedef StrD=Pointer<Utf8> Function();
+typedef CountN=Int32 Function(); typedef CountD=int Function(); typedef CueAtN=Int32 Function(Int32,Pointer<NativeCue>); typedef CueAtD=int Function(int,Pointer<NativeCue>); typedef StrN=Pointer<Utf8> Function(); typedef StrD=Pointer<Utf8> Function();
 
 class CueView{final int id,timeNs;final String department,name;const CueView(this.id,this.timeNs,this.department,this.name);}
 String _fixed(Array<Uint8> a,int n){final b=<int>[];for(var i=0;i<n&&a[i]!=0;i++)b.add(a[i]);return String.fromCharCodes(b);}
 class CoreBridge{
- late DynamicLibrary l;late InitD init;late ShutD shut;late StateD state;late CueD current;late NextD next;late CountD count;late StrD project,source;bool loaded=false;
- bool open(){try{l=DynamicLibrary.open('sown_core_api.dll');init=l.lookupFunction<InitN,InitD>('sown_init');shut=l.lookupFunction<ShutN,ShutD>('sown_shutdown');state=l.lookupFunction<StateN,StateD>('sown_get_state');current=l.lookupFunction<CueN,CueD>('sown_get_current_cue');next=l.lookupFunction<NextN,NextD>('sown_get_next_cue');count=l.lookupFunction<CountN,CountD>('sown_get_cue_count');project=l.lookupFunction<StrN,StrD>('sown_get_project_name');source=l.lookupFunction<StrN,StrD>('sown_get_active_source');loaded=init()==1;return loaded;}catch(_){return false;}}
+ late DynamicLibrary l;late InitD init;late ShutD shut;late StateD state;late CueD current;late NextD next;late CountD count;late CueAtD cueAt;late StrD project,source;bool loaded=false;
+ bool open(){try{l=DynamicLibrary.open('sown_core_api.dll');init=l.lookupFunction<InitN,InitD>('sown_init');shut=l.lookupFunction<ShutN,ShutD>('sown_shutdown');state=l.lookupFunction<StateN,StateD>('sown_get_state');current=l.lookupFunction<CueN,CueD>('sown_get_current_cue');next=l.lookupFunction<NextN,NextD>('sown_get_next_cue');count=l.lookupFunction<CountN,CountD>('sown_get_cue_count');cueAt=l.lookupFunction<CueAtN,CueAtD>('sown_get_cue_at');project=l.lookupFunction<StrN,StrD>('sown_get_project_name');source=l.lookupFunction<StrN,StrD>('sown_get_active_source');loaded=init()==1;return loaded;}catch(_){return false;}}
  CueView? cue(bool isNext,Pointer<Int64>? cd){final p=calloc<NativeCue>();try{final ok=isNext?next(p,cd!):current(p);if(ok!=1||p.ref.valid==0)return null;return CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192));}finally{calloc.free(p);}}
+ List<CueView> allCues(){final out=<CueView>[];if(!loaded)return out;final n=count();for(var i=0;i<n;i++){final p=calloc<NativeCue>();try{if(cueAt(i,p)==1&&p.ref.valid!=0){out.add(CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192)));}}finally{calloc.free(p);}}return out;}
  void close(){if(loaded)shut();}
 }
 void main()=>runApp(const SownApp());
 class SownApp extends StatelessWidget{const SownApp({super.key});@override Widget build(BuildContext c)=>MaterialApp(debugShowCheckedModeBanner:false,title:'SOWN SYNC',theme:ThemeData(useMaterial3:true,brightness:Brightness.dark,scaffoldBackgroundColor:kBg,colorScheme:ColorScheme.fromSeed(seedColor:kRed,brightness:Brightness.dark),fontFamily:'Segoe UI'),home:const Workspace());}
 class Workspace extends StatefulWidget{const Workspace({super.key});@override State<Workspace> createState()=>_WorkspaceState();}
 class _WorkspaceState extends State<Workspace>{
- final core=CoreBridge();Timer? timer;bool native=false,connected=false,locked=false;int transport=0,pos=0,cueCount=0,countdown=0;double fps=0;String project='Waiting for show',source='REAPER';CueView? current,next;int page=0;
+ final core=CoreBridge();Timer? timer;bool native=false,connected=false,locked=false;int transport=0,pos=0,cueCount=0,countdown=0;double fps=0;String project='Waiting for show',source='REAPER';CueView? current,next;List<CueView> cueList=[];int page=0;
  @override void initState(){super.initState();native=core.open();timer=Timer.periodic(const Duration(milliseconds:50),(_)=>poll());}
- void poll(){if(!native)return;final s=calloc<NativeState>(),cd=calloc<Int64>();try{if(core.state(s)==1&&mounted){final cv=core.cue(false,null),nv=core.cue(true,cd);setState((){connected=s.ref.connected!=0;locked=s.ref.locked!=0;transport=s.ref.transport;pos=s.ref.positionNs;fps=s.ref.fps;project=core.project().toDartString();source=core.source().toDartString().toUpperCase();cueCount=core.count();current=cv;next=nv;countdown=cd.value;});}}finally{calloc.free(s);calloc.free(cd);}}
+ void poll(){if(!native)return;final s=calloc<NativeState>(),cd=calloc<Int64>();try{if(core.state(s)==1&&mounted){final cv=core.cue(false,null),nv=core.cue(true,cd);setState((){connected=s.ref.connected!=0;locked=s.ref.locked!=0;transport=s.ref.transport;pos=s.ref.positionNs;fps=s.ref.fps;project=core.project().toDartString();source=core.source().toDartString().toUpperCase();cueCount=core.count();current=cv;next=nv;countdown=cd.value;cueList=core.allCues();});}}finally{calloc.free(s);calloc.free(cd);}}
  @override void dispose(){timer?.cancel();core.close();super.dispose();}
  String clock(int ns,{bool millis=true}){final ms=ns~/1000000,h=ms~/3600000,m=(ms~/60000)%60,s=(ms~/1000)%60,x=ms%1000;String p(int v,int n)=>v.toString().padLeft(n,'0');return millis?'${p(h,2)}:${p(m,2)}:${p(s,2)}.${p(x,3)}':'${p(h,2)}:${p(m,2)}:${p(s,2)}';}
  @override Widget build(BuildContext context){return Scaffold(body:Row(children:[_nav(),Expanded(child:Column(children:[_top(),Expanded(child:page==0?_show():_placeholder())]))]));}
@@ -96,7 +97,7 @@ class _WorkspaceState extends State<Workspace>{
          SizedBox(height: compact ? 10 : 12),
          _operatorStrip(compact: compact),
          SizedBox(height: compact ? 10 : 12),
-         Expanded(child: _cueDeck(compact: compact)),
+         Expanded(child: Row(children:[Expanded(flex:7,child:_cueDeck(compact: compact)),SizedBox(width: compact?10:12),Expanded(flex:3,child:_cueListPanel(compact))])),
        ]),
      );
    });
@@ -242,6 +243,55 @@ class _WorkspaceState extends State<Workspace>{
          alignment: Alignment.centerLeft,
          child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 32 : 44, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
        ),
+     ]),
+   );
+ }
+
+
+ Widget _cueListPanel(bool compact) {
+   final activeId=current?.id;
+   final nextId=next?.id;
+   return Container(
+     padding: EdgeInsets.all(compact?12:14),
+     decoration:_box(),
+     child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+       Row(children:[_label('CUE LIST'),const Spacer(),Text('${cueList.length} CUES',style:const TextStyle(color:Colors.white30,fontSize:9))]),
+       const SizedBox(height:10),
+       Container(height:1,color:kLine),
+       const SizedBox(height:6),
+       Expanded(child:cueList.isEmpty
+         ? const Center(child:Text('NO CUES',style:TextStyle(color:Colors.white24,fontSize:10,fontWeight:FontWeight.w800)))
+         : ListView.builder(
+             itemCount:cueList.length,
+             itemBuilder:(context,i){
+               final q=cueList[i];
+               final isCurrent=q.id==activeId;
+               final isNext=q.id==nextId;
+               final past=q.timeNs<pos&&!isCurrent;
+               return Container(
+                 margin:const EdgeInsets.only(bottom:4),
+                 padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
+                 decoration:BoxDecoration(
+                   color:isNext?kRed.withValues(alpha:.09):isCurrent?Colors.white.withValues(alpha:.06):Colors.transparent,
+                   borderRadius:BorderRadius.circular(8),
+                   border:Border.all(color:isNext?kRed.withValues(alpha:.45):isCurrent?Colors.white24:Colors.transparent),
+                 ),
+                 child:Row(children:[
+                   SizedBox(width:30,child:Text('#${q.id}',style:TextStyle(color:isNext?kRed:Colors.white38,fontSize:9,fontWeight:FontWeight.w800))),
+                   Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
+                     Text(q.name.isEmpty?'Cue ${q.id}':q.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:past?Colors.white30:Colors.white,fontSize:11,fontWeight:isNext?FontWeight.w800:FontWeight.w600)),
+                     const SizedBox(height:2),
+                     Row(children:[
+                       Text(clock(q.timeNs),style:const TextStyle(color:Colors.white30,fontSize:8,fontFeatures:[FontFeature.tabularFigures()])),
+                       if(q.department.isNotEmpty)...[const SizedBox(width:7),Flexible(child:Text(q.department.toUpperCase(),overflow:TextOverflow.ellipsis,style:TextStyle(color:isNext?kRed:Colors.white24,fontSize:7,fontWeight:FontWeight.w800)))],
+                     ]),
+                   ])),
+                   if(isCurrent)const Text('NOW',style:TextStyle(color:Colors.greenAccent,fontSize:7,fontWeight:FontWeight.w900)),
+                   if(isNext)const Text('NEXT',style:TextStyle(color:kRed,fontSize:7,fontWeight:FontWeight.w900)),
+                 ]),
+               );
+             },
+           )),
      ]),
    );
  }
