@@ -31,6 +31,7 @@ SOWN_API int sown_get_state(SownState* out_state);
 SOWN_API int sown_get_current_cue(SownCue* out_cue);
 SOWN_API int sown_get_next_cue(SownCue* out_cue, int64_t* countdown_ns);
 SOWN_API int sown_get_cue_count(void);
+SOWN_API int sown_get_cue_at(int index, SownCue* out_cue);
 SOWN_API int sown_is_reaper_connected(void);
 SOWN_API const char* sown_get_project_name(void);
 SOWN_API const char* sown_get_active_source(void);
