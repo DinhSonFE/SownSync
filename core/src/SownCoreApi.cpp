@@ -29,8 +29,9 @@ int sown_get_state(SownState*o){if(!o)return 0;std::lock_guard<std::mutex>lk(g);
 int sown_get_current_cue(SownCue*o){if(!o)return 0;std::lock_guard<std::mutex>lk(g);if(!engine)return 0;refresh();*o={};auto q=cues.evaluate(engine->state().positionNs);if(!q.current)return 1;cueOut(o,*q.current);return 1;}
 int sown_get_next_cue(SownCue*o,int64_t*cd){if(!o)return 0;std::lock_guard<std::mutex>lk(g);if(!engine)return 0;refresh();*o={};auto q=cues.evaluate(engine->state().positionNs);if(cd)*cd=q.countdownNs;if(q.next)cueOut(o,*q.next);return 1;}
 int sown_get_cue_count(void){std::lock_guard<std::mutex>lk(g);refresh();return (int)cues.cues().size();}
+int sown_get_cue_at(int index,SownCue*o){if(!o||index<0)return 0;std::lock_guard<std::mutex>lk(g);refresh();*o={};const auto&v=cues.cues();if(static_cast<size_t>(index)>=v.size())return 0;cueOut(o,v[static_cast<size_t>(index)]);return 1;}
 int sown_is_reaper_connected(void){std::lock_guard<std::mutex>lk(g);return reaper&&reaper->isConnected();}
 const char* sown_get_project_name(void){std::lock_guard<std::mutex>lk(g);projectCache=reaper?reaper->projectName():"";return projectCache.c_str();}
 const char* sown_get_active_source(void){std::lock_guard<std::mutex>lk(g);sourceCache=manager?manager->activeId():"";return sourceCache.c_str();}
-const char* sown_version(void){return "0.5.0";}
+const char* sown_version(void){return "0.5.4";}
 }
