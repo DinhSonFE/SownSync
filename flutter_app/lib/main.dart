@@ -98,7 +98,7 @@ class _WorkspaceState extends State<Workspace>{
          SizedBox(height: compact ? 10 : 12),
          _operatorStrip(compact: compact),
          SizedBox(height: compact ? 10 : 12),
-         Expanded(child: Row(children:[Expanded(flex:2,child:_cueDeck(compact: compact)),SizedBox(width: compact?10:12),Expanded(flex:1,child:_cueListPanel(compact))])),
+         Expanded(child: Row(children:[Expanded(flex:5,child:_cueDeck(compact: compact)),SizedBox(width: compact?10:12),Expanded(flex:3,child:_cueListPanel(compact))])),
        ]),
      );
    });
@@ -256,7 +256,7 @@ class _WorkspaceState extends State<Workspace>{
      padding: EdgeInsets.all(compact?12:14),
      decoration:_box(),
      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-       Row(children:[_label('CUE LIST'),const Spacer(),Text('${cueList.length} CUES',style:const TextStyle(color:Colors.white30,fontSize:9))]),
+       Row(children:[const Text('CUE LIST',style:TextStyle(color:Colors.white70,fontSize:14,fontWeight:FontWeight.w900,letterSpacing:1.3)),const Spacer(),Text('${cueList.length} CUES',style:const TextStyle(color:Colors.white38,fontSize:11,fontWeight:FontWeight.w700))]),
        const SizedBox(height:10),
        Container(height:1,color:kLine),
        const SizedBox(height:6),
@@ -270,25 +270,25 @@ class _WorkspaceState extends State<Workspace>{
                final isNext=q.id==nextId;
                final past=q.timeNs<pos&&!isCurrent;
                return Container(
-                 margin:const EdgeInsets.only(bottom:4),
-                 padding:const EdgeInsets.symmetric(horizontal:10,vertical:9),
+                 margin:const EdgeInsets.only(bottom:6),
+                 padding:EdgeInsets.symmetric(horizontal:compact?12:14,vertical:compact?11:14),
                  decoration:BoxDecoration(
                    color:isNext?kRed.withValues(alpha:.09):isCurrent?Colors.white.withValues(alpha:.06):Colors.transparent,
                    borderRadius:BorderRadius.circular(8),
                    border:Border.all(color:isNext?kRed.withValues(alpha:.45):isCurrent?Colors.white24:Colors.transparent),
                  ),
                  child:Row(children:[
-                   SizedBox(width:30,child:Text('#${q.id}',style:TextStyle(color:isNext?kRed:Colors.white38,fontSize:9,fontWeight:FontWeight.w800))),
+                   SizedBox(width:38,child:Text('#${q.id}',style:TextStyle(color:isNext?kRed:Colors.white54,fontSize:compact?11:12,fontWeight:FontWeight.w900))),
                    Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                     Text(q.name.isEmpty?'Cue ${q.id}':q.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:past?Colors.white30:Colors.white,fontSize:11,fontWeight:isNext?FontWeight.w800:FontWeight.w600)),
+                     Text(q.name.isEmpty?'Cue ${q.id}':q.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:past?Colors.white30:Colors.white,fontSize:compact?13:15,fontWeight:isNext?FontWeight.w900:FontWeight.w700)),
                      const SizedBox(height:2),
                      Row(children:[
-                       Text(clock(q.timeNs),style:const TextStyle(color:Colors.white38,fontSize:10,fontFeatures:[FontFeature.tabularFigures()])),
-                       if(q.department.isNotEmpty)...[const SizedBox(width:7),Flexible(child:Text(q.department.toUpperCase(),overflow:TextOverflow.ellipsis,style:TextStyle(color:isNext?kRed:Colors.white38,fontSize:9,fontWeight:FontWeight.w800)))],
+                       Text(clock(q.timeNs),style:TextStyle(color:Colors.white54,fontSize:compact?11:12,fontWeight:FontWeight.w600,fontFeatures:const [FontFeature.tabularFigures()])),
+                       if(q.department.isNotEmpty)...[const SizedBox(width:7),Flexible(child:Text(q.department.toUpperCase(),overflow:TextOverflow.ellipsis,style:TextStyle(color:isNext?kRed:Colors.white54,fontSize:compact?10:11,fontWeight:FontWeight.w800)))],
                      ]),
                    ])),
-                   if(isCurrent)const Text('NOW',style:TextStyle(color:Colors.greenAccent,fontSize:9,fontWeight:FontWeight.w900)),
-                   if(isNext)const Text('NEXT',style:TextStyle(color:kRed,fontSize:9,fontWeight:FontWeight.w900)),
+                   if(isCurrent)Text('NOW',style:TextStyle(color:Colors.greenAccent,fontSize:compact?10:11,fontWeight:FontWeight.w900)),
+                   if(isNext)Text('NEXT',style:TextStyle(color:kRed,fontSize:compact?10:11,fontWeight:FontWeight.w900)),
                  ]),
                );
              },
