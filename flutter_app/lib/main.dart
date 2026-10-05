@@ -7,20 +7,20 @@ import 'package:flutter/material.dart';
 
 const kRed=Color(0xFFFF334D), kBg=Color(0xFF080A0E), kPanel=Color(0xFF10141B), kLine=Color(0xFF252B35);
 final class NativeState extends Struct{@Int32() external int connected;@Int32() external int locked;@Int32() external int transport;@Int64() external int positionNs;@Double() external double playbackRate;@Double() external double fps;@Uint64() external int sequence;}
-final class NativeCue extends Struct{@Uint32() external int id;@Int64() external int timeNs;@Int64() external int warningNs;@Array(64) external Array<Uint8> department;@Array(192) external Array<Uint8> name;@Int32() external int valid;}
+final class NativeCue extends Struct{@Uint32() external int id;@Int64() external int timeNs;@Int64() external int warningNs;@Array(64) external Array<Uint8> department;@Array(192) external Array<Uint8> name;@Uint32() external int color;@Int64() external int endNs;@Int32() external int isRegion;@Int32() external int valid;}
 typedef InitN=Int32 Function(); typedef InitD=int Function(); typedef ShutN=Void Function(); typedef ShutD=void Function();
 typedef StateN=Int32 Function(Pointer<NativeState>); typedef StateD=int Function(Pointer<NativeState>);
 typedef CueN=Int32 Function(Pointer<NativeCue>); typedef CueD=int Function(Pointer<NativeCue>);
 typedef NextN=Int32 Function(Pointer<NativeCue>,Pointer<Int64>); typedef NextD=int Function(Pointer<NativeCue>,Pointer<Int64>);
 typedef CountN=Int32 Function(); typedef CountD=int Function(); typedef CueAtN=Int32 Function(Int32,Pointer<NativeCue>); typedef CueAtD=int Function(int,Pointer<NativeCue>); typedef StrN=Pointer<Utf8> Function(); typedef StrD=Pointer<Utf8> Function();
 
-class CueView{final int id,timeNs;final String department,name;const CueView(this.id,this.timeNs,this.department,this.name);}
+class CueView{final int id,timeNs,endNs,color;final bool isRegion;final String department,name;const CueView(this.id,this.timeNs,this.department,this.name,{this.endNs=0,this.color=0,this.isRegion=false});}
 String _fixed(Array<Uint8> a,int n){final b=<int>[];for(var i=0;i<n&&a[i]!=0;i++)b.add(a[i]);return utf8.decode(b, allowMalformed:true);}
 class CoreBridge{
  late DynamicLibrary l;late InitD init;late ShutD shut;late StateD state;late CueD current;late NextD next;late CountD count;late CueAtD cueAt;late StrD project,source;bool loaded=false;
  bool open(){try{l=DynamicLibrary.open('sown_core_api.dll');init=l.lookupFunction<InitN,InitD>('sown_init');shut=l.lookupFunction<ShutN,ShutD>('sown_shutdown');state=l.lookupFunction<StateN,StateD>('sown_get_state');current=l.lookupFunction<CueN,CueD>('sown_get_current_cue');next=l.lookupFunction<NextN,NextD>('sown_get_next_cue');count=l.lookupFunction<CountN,CountD>('sown_get_cue_count');cueAt=l.lookupFunction<CueAtN,CueAtD>('sown_get_cue_at');project=l.lookupFunction<StrN,StrD>('sown_get_project_name');source=l.lookupFunction<StrN,StrD>('sown_get_active_source');loaded=init()==1;return loaded;}catch(_){return false;}}
- CueView? cue(bool isNext,Pointer<Int64>? cd){final p=calloc<NativeCue>();try{final ok=isNext?next(p,cd!):current(p);if(ok!=1||p.ref.valid==0)return null;return CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192));}finally{calloc.free(p);}}
- List<CueView> allCues(){final out=<CueView>[];if(!loaded)return out;final n=count();for(var i=0;i<n;i++){final p=calloc<NativeCue>();try{if(cueAt(i,p)==1&&p.ref.valid!=0){out.add(CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192)));}}finally{calloc.free(p);}}return out;}
+ CueView? cue(bool isNext,Pointer<Int64>? cd){final p=calloc<NativeCue>();try{final ok=isNext?next(p,cd!):current(p);if(ok!=1||p.ref.valid==0)return null;return CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192),endNs:p.ref.endNs,color:p.ref.color,isRegion:p.ref.isRegion!=0);}finally{calloc.free(p);}}
+ List<CueView> allCues(){final out=<CueView>[];if(!loaded)return out;final n=count();for(var i=0;i<n;i++){final p=calloc<NativeCue>();try{if(cueAt(i,p)==1&&p.ref.valid!=0){out.add(CueView(p.ref.id,p.ref.timeNs,_fixed(p.ref.department,64),_fixed(p.ref.name,192),endNs:p.ref.endNs,color:p.ref.color,isRegion:p.ref.isRegion!=0));}}finally{calloc.free(p);}}return out;}
  void close(){if(loaded)shut();}
 }
 void main()=>runApp(const SownApp());
@@ -207,7 +207,7 @@ class _WorkspaceState extends State<Workspace>{
              final q=entry.value;
              final x=((q.timeNs-from)/(to-from))*w;
              final isPast=q.timeNs<pos, isNext=q.id==next?.id;
-             final accent=isNext?kRed:_departmentColor(q.department);
+             final accent=isNext?kRed:_reaperColor(q.color,q.department);
              final lineColor=isPast?accent.withValues(alpha:.28):accent.withValues(alpha:.78);
              final lane=entry.key%3;
              final cardTop=markerTop+lane*(compact?38:44);
@@ -246,6 +246,16 @@ class _WorkspaceState extends State<Workspace>{
        })),
      ]),
    );
+ }
+
+ Color _reaperColor(int nativeColor,String department){
+   // REAPER custom colors carry 0x1000000 plus native COLORREF (0x00BBGGRR).
+   if((nativeColor & 0x1000000)!=0){
+     final raw=nativeColor&0xFFFFFF;
+     final r=raw&0xFF,g=(raw>>8)&0xFF,b=(raw>>16)&0xFF;
+     return Color.fromARGB(255,r,g,b);
+   }
+   return _departmentColor(department);
  }
 
  Color _departmentColor(String department){
