@@ -20,7 +20,7 @@ std::uint64_t lastPackets=0;
 std::string projectCache,sourceCache;
 void copy(char* d,size_t n,const std::string&s){if(!n)return;std::strncpy(d,s.c_str(),n-1);d[n-1]=0;}
 void refresh(){if(!reaper)return;auto p=reaper->packetsReceived();if(p!=lastPackets){cues.setCues(reaper->markerCues());lastPackets=p;}}
-void cueOut(SownCue*o,const Cue&c){o->id=c.id;o->time_ns=c.timeNs;o->warning_ns=c.warningNs;copy(o->department,sizeof(o->department),c.department);copy(o->name,sizeof(o->name),c.name);o->valid=1;}
+void cueOut(SownCue*o,const Cue&c){o->id=c.id;o->time_ns=c.timeNs;o->warning_ns=c.warningNs;copy(o->department,sizeof(o->department),c.department);copy(o->name,sizeof(o->name),c.name);o->color=c.color;o->end_ns=c.endNs;o->is_region=c.isRegion?1:0;o->valid=1;}
 }
 extern "C" {
 int sown_init(void){std::lock_guard<std::mutex>lk(g);if(engine)return 1;reaper=std::make_shared<ReaperSyncSource>(19101);if(!reaper->start()){reaper.reset();return 0;}manager=std::make_shared<SyncSourceManager>();manager->addSource("reaper","REAPER",reaper,SourceRole::Primary,10);engine=std::make_unique<SyncEngine>(manager);return 1;}
@@ -33,5 +33,9 @@ int sown_get_cue_at(int index,SownCue*o){if(!o||index<0)return 0;std::lock_guard
 int sown_is_reaper_connected(void){std::lock_guard<std::mutex>lk(g);return reaper&&reaper->isConnected();}
 const char* sown_get_project_name(void){std::lock_guard<std::mutex>lk(g);projectCache=reaper?reaper->projectName():"";return projectCache.c_str();}
 const char* sown_get_active_source(void){std::lock_guard<std::mutex>lk(g);sourceCache=manager?manager->activeId():"";return sourceCache.c_str();}
-const char* sown_version(void){return "0.6.0";}
+double sown_get_reaper_tempo(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->tempo():0.0;}
+int64_t sown_get_reaper_project_length_ns(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->projectLengthNs():0;}
+int64_t sown_get_reaper_edit_cursor_ns(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->editCursorNs():0;}
+uint32_t sown_get_reaper_project_revision(void){std::lock_guard<std::mutex>lk(g);return reaper?reaper->projectRevision():0;}
+const char* sown_version(void){return "0.7.0";}
 }
