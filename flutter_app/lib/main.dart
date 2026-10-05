@@ -78,7 +78,7 @@ class _WorkspaceState extends State<Workspace>{
  Widget _show() {
    return LayoutBuilder(builder: (context, constraints) {
      final narrow = constraints.maxWidth < 760;
-     final compact = constraints.maxWidth < 1180 || constraints.maxHeight < 720;
+     final compact = constraints.maxWidth < 1180 || constraints.maxHeight < 900;
      final wide = constraints.maxWidth >= 1400;
      if (narrow) {
        return SingleChildScrollView(
@@ -111,7 +111,7 @@ class _WorkspaceState extends State<Workspace>{
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    return Container(
-     height: compact ? 190 : wide ? 235 : 215,
+     height: compact ? 166 : wide ? 205 : 190,
      padding: EdgeInsets.fromLTRB(compact ? 18 : 28, 16, compact ? 18 : 28, 14),
      decoration: _box(),
      child: Column(children: [
@@ -123,7 +123,7 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontFamily: 'Cascadia Mono', fontSize: compact ? 76 : wide ? 116 : 96, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
+         child: Text(clock(pos), style: TextStyle(fontFamily: 'Cascadia Mono', fontSize: compact ? 64 : wide ? 104 : 86, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
        ),
        const SizedBox(height: 2),
        Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
@@ -135,11 +135,11 @@ class _WorkspaceState extends State<Workspace>{
 
  Widget _timeline() {
    return LayoutBuilder(builder: (context, constraints) => SizedBox(
-     height: 22,
+     height: 16,
      child: Stack(children: [
-       Positioned(top: 9, left: 0, right: 0, child: Container(height: 1, color: kLine)),
-       Positioned(top: 1, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 16, color: kRed)),
-       ...List.generate(9, (i) => Positioned(left: constraints.maxWidth * i / 8 - .5, top: 6, child: Container(width: 1, height: 7, color: Colors.white12))),
+       Positioned(top: 7, left: 0, right: 0, child: Container(height: 1, color: kLine)),
+       Positioned(top: 0, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 14, color: kRed)),
+       ...List.generate(9, (i) => Positioned(left: constraints.maxWidth * i / 8 - .5, top: 4, child: Container(width: 1, height: 7, color: Colors.white12))),
      ]),
    ));
  }
@@ -234,12 +234,12 @@ class _WorkspaceState extends State<Workspace>{
 
  Widget _currentCard(bool compact) {
    return Container(
-     padding: EdgeInsets.all(compact ? 14 : 18),
+     padding: EdgeInsets.all(compact ? 12 : 18),
      decoration: BoxDecoration(color: Colors.white.withValues(alpha: .025), borderRadius: BorderRadius.circular(12), border: Border.all(color: kLine)),
      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
        Row(children: [_label('CURRENT'), const Spacer(), if (current != null) _pill(current!.department.isEmpty ? 'CUE' : current!.department, Colors.white54)]),
        const Spacer(),
-       Text(current?.name ?? 'NO ACTIVE CUE', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 22 : 30, fontWeight: FontWeight.w700, color: current == null ? Colors.white24 : Colors.white)),
+       Text(current?.name ?? 'NO ACTIVE CUE', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 18 : 30, fontWeight: FontWeight.w700, color: current == null ? Colors.white24 : Colors.white)),
        const SizedBox(height: 7),
        if (current != null) Text('#${current!.id}   ${clock(current!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 10, fontFeatures: [FontFeature.tabularFigures()])),
        const Spacer(),
@@ -264,7 +264,7 @@ class _WorkspaceState extends State<Workspace>{
          if (has) _pill(next!.department.isEmpty ? 'CUE' : next!.department, kRed),
        ]),
        const Spacer(),
-       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 28 : 38, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
+       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 22 : 32, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
        if (has) ...[
          const SizedBox(height: 8),
          Text('#${next!.id}   ${clock(next!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
@@ -275,7 +275,7 @@ class _WorkspaceState extends State<Workspace>{
        FittedBox(
          fit: BoxFit.scaleDown,
          alignment: Alignment.centerLeft,
-         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 38 : 54, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
+         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 30 : 44, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
        ),
      ]),
    );
