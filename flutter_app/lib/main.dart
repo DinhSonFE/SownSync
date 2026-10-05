@@ -51,7 +51,7 @@ class _WorkspaceState extends State<Workspace>{
            child: Column(children: [
              Icon(icons[i], size: 21, color: page == i ? Colors.white : Colors.white38),
              const SizedBox(height: 5),
-             Text(names[i], style: TextStyle(fontSize: 9, fontWeight: FontWeight.w700, color: page == i ? Colors.white : Colors.white38)),
+             Text(names[i], style: TextStyle(fontSize: 10, fontWeight: FontWeight.w700, color: page == i ? Colors.white : Colors.white38)),
            ]),
          ),
        )),
@@ -78,6 +78,7 @@ class _WorkspaceState extends State<Workspace>{
    return LayoutBuilder(builder: (context, constraints) {
      final narrow = constraints.maxWidth < 760;
      final compact = constraints.maxWidth < 1180 || constraints.maxHeight < 720;
+     final wide = constraints.maxWidth >= 1400;
      if (narrow) {
        return SingleChildScrollView(
          padding: const EdgeInsets.all(10),
@@ -93,7 +94,7 @@ class _WorkspaceState extends State<Workspace>{
      return Padding(
        padding: EdgeInsets.all(compact ? 12 : 16),
        child: Column(children: [
-         _hero(compact),
+         _hero(compact, wide: wide),
          SizedBox(height: compact ? 10 : 12),
          _operatorStrip(compact: compact),
          SizedBox(height: compact ? 10 : 12),
@@ -103,14 +104,14 @@ class _WorkspaceState extends State<Workspace>{
    });
  }
 
- Widget _hero(bool compact) {
+ Widget _hero(bool compact, {bool wide = false}) {
    final playing = transport == 1;
    final paused = transport == 2;
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    return Container(
-     height: compact ? 176 : 190,
-     padding: EdgeInsets.fromLTRB(compact ? 18 : 24, 14, compact ? 18 : 24, 12),
+     height: compact ? 190 : wide ? 250 : 220,
+     padding: EdgeInsets.fromLTRB(compact ? 18 : 28, 16, compact ? 18 : 28, 14),
      decoration: _box(),
      child: Column(children: [
        Row(children: [
@@ -121,10 +122,10 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontSize: compact ? 48 : 58, fontWeight: FontWeight.w300, letterSpacing: 2, fontFeatures: const [FontFeature.tabularFigures()])),
+         child: Text(clock(pos), style: TextStyle(fontSize: compact ? 58 : wide ? 104 : 78, fontWeight: FontWeight.w300, letterSpacing: wide ? 4 : 3, fontFeatures: const [FontFeature.tabularFigures()])),
        ),
        const SizedBox(height: 2),
-       Text('$fpsText FPS   •   $source MASTER', style: const TextStyle(color: Colors.white38, fontSize: 9, letterSpacing: 1.1)),
+       Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
        const Spacer(),
        _timeline(),
      ]),
@@ -282,12 +283,12 @@ class _WorkspaceState extends State<Workspace>{
                      Text(q.name.isEmpty?'Cue ${q.id}':q.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:past?Colors.white30:Colors.white,fontSize:11,fontWeight:isNext?FontWeight.w800:FontWeight.w600)),
                      const SizedBox(height:2),
                      Row(children:[
-                       Text(clock(q.timeNs),style:const TextStyle(color:Colors.white30,fontSize:8,fontFeatures:[FontFeature.tabularFigures()])),
-                       if(q.department.isNotEmpty)...[const SizedBox(width:7),Flexible(child:Text(q.department.toUpperCase(),overflow:TextOverflow.ellipsis,style:TextStyle(color:isNext?kRed:Colors.white24,fontSize:7,fontWeight:FontWeight.w800)))],
+                       Text(clock(q.timeNs),style:const TextStyle(color:Colors.white38,fontSize:10,fontFeatures:[FontFeature.tabularFigures()])),
+                       if(q.department.isNotEmpty)...[const SizedBox(width:7),Flexible(child:Text(q.department.toUpperCase(),overflow:TextOverflow.ellipsis,style:TextStyle(color:isNext?kRed:Colors.white38,fontSize:9,fontWeight:FontWeight.w800)))],
                      ]),
                    ])),
-                   if(isCurrent)const Text('NOW',style:TextStyle(color:Colors.greenAccent,fontSize:7,fontWeight:FontWeight.w900)),
-                   if(isNext)const Text('NEXT',style:TextStyle(color:kRed,fontSize:7,fontWeight:FontWeight.w900)),
+                   if(isCurrent)const Text('NOW',style:TextStyle(color:Colors.greenAccent,fontSize:9,fontWeight:FontWeight.w900)),
+                   if(isNext)const Text('NEXT',style:TextStyle(color:kRed,fontSize:9,fontWeight:FontWeight.w900)),
                  ]),
                );
              },
@@ -299,9 +300,9 @@ class _WorkspaceState extends State<Workspace>{
  Widget _divider() => Container(width: 1, height: 28, color: kLine);
  Widget _statusDot(Color color) => Container(width: 8, height: 8, decoration: BoxDecoration(shape: BoxShape.circle, color: color));
  Widget _miniStatus(String label, String value, Color color) => Column(mainAxisAlignment: MainAxisAlignment.center, crossAxisAlignment: CrossAxisAlignment.start, children: [
-   Text(label, style: const TextStyle(color: Colors.white30, fontSize: 8, fontWeight: FontWeight.w700)),
+   Text(label, style: const TextStyle(color: Colors.white30, fontSize: 9, fontWeight: FontWeight.w700)),
    const SizedBox(height: 2),
-   Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
+   Text(value, overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 12, fontWeight: FontWeight.w800)),
  ]);
 
  Widget _placeholder() => Center(child: Column(mainAxisSize: MainAxisSize.min, children: [
@@ -313,11 +314,11 @@ class _WorkspaceState extends State<Workspace>{
  ]));
 
  BoxDecoration _box() => BoxDecoration(color: kPanel, borderRadius: BorderRadius.circular(14), border: Border.all(color: kLine));
- Widget _label(String s) => Text(s, style: const TextStyle(color: Colors.white38, fontSize: 9, fontWeight: FontWeight.w800, letterSpacing: 1.2));
+ Widget _label(String s) => Text(s, style: const TextStyle(color: Colors.white54, fontSize: 11, fontWeight: FontWeight.w800, letterSpacing: 1.2));
  Widget _pill(String s, Color color) => Container(
    padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 6),
    decoration: BoxDecoration(color: color.withValues(alpha: .1), borderRadius: BorderRadius.circular(20), border: Border.all(color: color.withValues(alpha: .14))),
-   child: Text('●  $s', overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 9, fontWeight: FontWeight.w800)),
+   child: Text('●  $s', overflow: TextOverflow.ellipsis, style: TextStyle(color: color, fontSize: 10, fontWeight: FontWeight.w800)),
  );
  Widget _metric(String label, String value, Color color) => Row(children: [
    Expanded(child: Text(label, style: const TextStyle(color: Colors.white38, fontSize: 9))),
