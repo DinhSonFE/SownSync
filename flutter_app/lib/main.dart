@@ -14,7 +14,7 @@ typedef NextN=Int32 Function(Pointer<NativeCue>,Pointer<Int64>); typedef NextD=i
 typedef CountN=Int32 Function(); typedef CountD=int Function(); typedef CueAtN=Int32 Function(Int32,Pointer<NativeCue>); typedef CueAtD=int Function(int,Pointer<NativeCue>); typedef StrN=Pointer<Utf8> Function(); typedef StrD=Pointer<Utf8> Function();
 
 class CueView{final int id,timeNs;final String department,name;const CueView(this.id,this.timeNs,this.department,this.name);}
-String _fixed(Array<Uint8> a,int n){final b=<int>[];for(var i=0;i<n&&a[i]!=0;i++)b.add(a[i]);return String.fromCharCodes(b);}
+String _fixed(Array<Uint8> a,int n){final b=<int>[];for(var i=0;i<n&&a[i]!=0;i++)b.add(a[i]);return utf8.decode(b, allowMalformed:true);}
 class CoreBridge{
  late DynamicLibrary l;late InitD init;late ShutD shut;late StateD state;late CueD current;late NextD next;late CountD count;late CueAtD cueAt;late StrD project,source;bool loaded=false;
  bool open(){try{l=DynamicLibrary.open('sown_core_api.dll');init=l.lookupFunction<InitN,InitD>('sown_init');shut=l.lookupFunction<ShutN,ShutD>('sown_shutdown');state=l.lookupFunction<StateN,StateD>('sown_get_state');current=l.lookupFunction<CueN,CueD>('sown_get_current_cue');next=l.lookupFunction<NextN,NextD>('sown_get_next_cue');count=l.lookupFunction<CountN,CountD>('sown_get_cue_count');cueAt=l.lookupFunction<CueAtN,CueAtD>('sown_get_cue_at');project=l.lookupFunction<StrN,StrD>('sown_get_project_name');source=l.lookupFunction<StrN,StrD>('sown_get_active_source');loaded=init()==1;return loaded;}catch(_){return false;}}
@@ -23,7 +23,7 @@ class CoreBridge{
  void close(){if(loaded)shut();}
 }
 void main()=>runApp(const SownApp());
-class SownApp extends StatelessWidget{const SownApp({super.key});@override Widget build(BuildContext c)=>MaterialApp(debugShowCheckedModeBanner:false,title:'SOWN SYNC',theme:ThemeData(useMaterial3:true,brightness:Brightness.dark,scaffoldBackgroundColor:kBg,colorScheme:ColorScheme.fromSeed(seedColor:kRed,brightness:Brightness.dark),fontFamily:'Segoe UI'),home:const Workspace());}
+class SownApp extends StatelessWidget{const SownApp({super.key});@override Widget build(BuildContext c)=>MaterialApp(debugShowCheckedModeBanner:false,title:'SOWN SYNC',theme:ThemeData(useMaterial3:true,brightness:Brightness.dark,scaffoldBackgroundColor:kBg,colorScheme:ColorScheme.fromSeed(seedColor:kRed,brightness:Brightness.dark),fontFamily:'Arial'),home:const Workspace());}
 class Workspace extends StatefulWidget{const Workspace({super.key});@override State<Workspace> createState()=>_WorkspaceState();}
 class _WorkspaceState extends State<Workspace>{
  final core=CoreBridge();Timer? timer;bool native=false,connected=false,locked=false;int transport=0,pos=0,cueCount=0,countdown=0;double fps=0;String project='Waiting for show',source='REAPER';CueView? current,next;List<CueView> cueList=[];int page=0;
@@ -122,7 +122,7 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontFamily: 'Consolas', fontSize: compact ? 76 : wide ? 116 : 96, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
+         child: Text(clock(pos), style: TextStyle(fontFamily: 'Cascadia Mono', fontSize: compact ? 76 : wide ? 116 : 96, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
        ),
        const SizedBox(height: 2),
        Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
