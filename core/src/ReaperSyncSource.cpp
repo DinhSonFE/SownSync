@@ -89,7 +89,12 @@ void ReaperSyncSource::resetEstimatorUnlocked(){
  precision_.phaseStableWindows=0;
  precision_.phaseSamples=0;
  previousSenderQpc_=0;
+ windowAnchorSenderQpc_=0;
+ windowAnchorPosition_=0;
+ windowPacketCount_=0;
  previousSenderQpcFreq_=0;
+ precision_.windowPhaseMs=0.0;
+ precision_.windowPackets=0;
  settlingPackets_=8;
  precision_.phaseErrorMs=0.0;
  precision_.errorRmsMs=0.0;
@@ -167,47 +172,67 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
   if(previousTransport_==TransportState::Playing&&tr==TransportState::Playing&&senderClockValid&&senderSec>0.002){
    const double rate=state_.playbackRate>0.0?state_.playbackRate:1.0;
    const double timelineSec=(double)(pos-previousPacketPosition_)/1e9/rate;
-   const double phaseErrorMs=(timelineSec-senderSec)*1000.0;
-   precision_.phaseErrorMs=phaseErrorMs;
+   const double packetPhaseMs=(timelineSec-senderSec)*1000.0;
 
-   // V0.2.5.3 Phase Acquisition State Machine.
-   // Raw phase remains observable during acquisition. A robust rolling window
-   // estimates the sampling bias; consecutive stable windows are required
-   // before lock. After lock, only residual error is used for tracking.
+   // V0.2.6 Windowed Phase Estimator.
+   // REAPER transport position is quantised by its audio/control sampling cadence.
+   // Never discipline the clock from one packet delta. Measure phase over a
+   // multi-packet sender-QPC window so the 23.22/46.44 ms quantisation cancels.
+   constexpr int kWindowPackets=16;
+   constexpr double kMaxWindowPhaseMs=50.0;
+   if(windowAnchorSenderQpc_==0 || windowPacketCount_<=0){
+    windowAnchorSenderQpc_=qpc;
+    windowAnchorPosition_=pos;
+    windowPacketCount_=1;
+   }else{
+    ++windowPacketCount_;
+   }
+
+   double windowPhaseMs=precision_.windowPhaseMs;
+   double windowSenderSec=0.0;
+   double windowTimelineSec=0.0;
+   bool windowReady=false;
+   if(windowPacketCount_>=kWindowPackets && qpc>windowAnchorSenderQpc_ && freq>0){
+    windowSenderSec=(double)(qpc-windowAnchorSenderQpc_)/(double)freq;
+    windowTimelineSec=(double)(pos-windowAnchorPosition_)/1e9/rate;
+    if(windowSenderSec>0.1){
+     windowPhaseMs=(windowTimelineSec-windowSenderSec)*1000.0;
+     windowReady=std::abs(windowPhaseMs)<kMaxWindowPhaseMs;
+    }
+   }
+
+   precision_.phaseErrorMs=packetPhaseMs;
+   precision_.windowPhaseMs=windowPhaseMs;
+   precision_.windowPackets=windowPacketCount_;
+
    if(settlingPackets_>0){
     phaseState_=PhaseAcquisitionState::Warmup;
-   }else if(std::abs(phaseErrorMs)<50.0){
+   }else if(windowReady){
+    // Each completed non-overlapping window is an independent low-noise phase sample.
     if(!phaseLocked_){
      phaseState_=PhaseAcquisitionState::Acquiring;
-     phaseLearningWindow_.push_back(phaseErrorMs);
-     if(phaseLearningWindow_.size()>96)phaseLearningWindow_.erase(phaseLearningWindow_.begin());
+     phaseLearningWindow_.push_back(windowPhaseMs);
+     if(phaseLearningWindow_.size()>32)phaseLearningWindow_.erase(phaseLearningWindow_.begin());
      phaseLockSamples_=(int)phaseLearningWindow_.size();
 
-     if(phaseLearningWindow_.size()>=48){
+     if(phaseLearningWindow_.size()>=8){
       auto w=phaseLearningWindow_;
       std::sort(w.begin(),w.end());
-      const std::size_t trim=std::max<std::size_t>(1,w.size()/8);
-      const auto first=w.begin()+static_cast<std::ptrdiff_t>(trim);
-      const auto last=w.end()-static_cast<std::ptrdiff_t>(trim);
-      const double candidate=std::accumulate(first,last,0.0)/(double)std::distance(first,last);
-
+      const double candidate=w[w.size()/2];
       std::vector<double> dev;dev.reserve(w.size());
       for(double v:w)dev.push_back(std::abs(v-candidate));
       std::sort(dev.begin(),dev.end());
       phaseMadMs_=dev[dev.size()/2];
 
-      // REAPER's ~32 Hz sampling can have several ms of quantisation noise.
-      // Require repeatable windows, not an unrealistically motionless phase.
-      const bool stableWindow=phaseMadMs_<8.0;
-      if(stableWindow){
+      // Windowing should reduce REAPER quantisation substantially. Require a
+      // repeatable phase distribution before declaring lock.
+      if(phaseMadMs_<3.0){
        phaseState_=PhaseAcquisitionState::Stable;
        phaseBaselineMs_=candidate;
        ++phaseStableWindows_;
-      }else{
-       phaseStableWindows_=0;
-      }
+      }else phaseStableWindows_=0;
 
-      if(phaseStableWindows_>=4){
+      if(phaseStableWindows_>=3){
        phaseLocked_=true;
        phaseState_=PhaseAcquisitionState::Locked;
        residualSquareEma_=0.0;
@@ -217,14 +242,24 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
      }
     }else{
      phaseState_=PhaseAcquisitionState::Tracking;
-     const double delta=phaseErrorMs-phaseBaselineMs_;
-     // Very slow baseline tracking; reject transient scheduler spikes.
-     if(std::abs(delta)<std::max(8.0,phaseMadMs_*4.0))phaseBaselineMs_+=delta*0.0005;
+     const double delta=windowPhaseMs-phaseBaselineMs_;
+     if(std::abs(delta)<std::max(6.0,phaseMadMs_*4.0))phaseBaselineMs_+=delta*0.02;
+    }
+
+    // Estimate long-term source frequency from the same quantisation-resistant window.
+    if(windowSenderSec>0.1){
+     const double sampleSlope=windowTimelineSec/windowSenderSec;
+     if(std::abs(windowPhaseMs)<20.0){
+      const double boundedSlope=std::clamp(sampleSlope,0.998,1.002);
+      sourceSlopeEma_=sourceSlopeEma_*0.98+boundedSlope*0.02;
+      driftPpmFiltered_=std::clamp((sourceSlopeEma_-1.0)*1e6,-2000.0,2000.0);
+      precision_.driftPpm=driftPpmFiltered_;
+      clockRateScale_=std::clamp(sourceSlopeEma_,0.998,1.002);
+     }
     }
    }
 
-   // Never hide acquisition error: residual is meaningful even before lock.
-   const double residualMs=phaseErrorMs-phaseBaselineMs_;
+   const double residualMs=windowPhaseMs-phaseBaselineMs_;
    precision_.phaseBaselineMs=phaseBaselineMs_;
    precision_.residualErrorMs=residualMs;
    precision_.phaseLocked=phaseLocked_;
@@ -237,41 +272,35 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
    const double senderDeltaMs=senderSec*1000.0;
    const double positionDeltaMs=(double)(pos-previousPacketPosition_)/1e6;
    logPhaseSampleUnlocked(seq,qpc,senderDeltaMs,pos,positionDeltaMs,
-                          phaseErrorMs,phaseBaselineMs_,residualMs);
+                          packetPhaseMs,phaseBaselineMs_,residualMs);
 
-   const bool seek=std::abs(phaseErrorMs)>150.0;
+   const bool seek=std::abs(packetPhaseMs)>150.0;
    if(seek){
     precision_.seekEvents++;precision_.hardSnaps++;
     clockRateScale_=1.0;driftPpmFiltered_=0.0;sourceSlopeEma_=1.0;settlingPackets_=8;
+    windowAnchorSenderQpc_=qpc;windowAnchorPosition_=pos;windowPacketCount_=1;
     phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseState_=PhaseAcquisitionState::Warmup;phaseStableWindows_=0;phaseMadMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
     precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;precision_.phaseLocked=false;precision_.phaseState=PhaseAcquisitionState::Warmup;precision_.phaseMadMs=0.0;precision_.phaseStableWindows=0;precision_.phaseSamples=0;
     errorSquareEma_=0.0;precision_.errorRmsMs=0.0;precision_.errorPeakMs=0.0;
    }else if(settlingPackets_>0){
     --settlingPackets_;
     precision_.correctionMs=0.0;
-   }else{
-    // Frequency is estimated entirely in the sender clock domain.
-    // Local packet arrival timing is used only for transport jitter/health.
-    // Reject timer quantisation/outliers. Estimate frequency only from packets whose
-    // timeline delta agrees reasonably with the sender monotonic interval.
-    const double sampleSlope=timelineSec/senderSec;
-    if(std::abs(phaseErrorMs)<5.0){
-     const double boundedSlope=std::clamp(sampleSlope,0.998,1.002);
-     sourceSlopeEma_=sourceSlopeEma_*0.999+boundedSlope*0.001;
-    }
-    driftPpmFiltered_=std::clamp((sourceSlopeEma_-1.0)*1e6,-2000.0,2000.0);
-    precision_.driftPpm=driftPpmFiltered_;
-    clockRateScale_=std::clamp(sourceSlopeEma_,0.998,1.002);
-
-    const double residualMs=phaseErrorMs-phaseBaselineMs_;
-    residualSquareEma_=residualSquareEma_*0.98+(residualMs*residualMs)*0.02;
+   }else if(windowReady){
+    residualSquareEma_=residualSquareEma_*0.90+(residualMs*residualMs)*0.10;
     precision_.errorRmsMs=std::sqrt(residualSquareEma_);
     precision_.errorPeakMs=std::max(precision_.errorPeakMs,std::abs(residualMs));
     precision_.correctionMs=std::abs(residualMs);
     if(phaseLocked_&&std::abs(residualMs)>1.0)precision_.softCorrections++;
    }
+
+   if(windowReady){
+    windowAnchorSenderQpc_=qpc;
+    windowAnchorPosition_=pos;
+    windowPacketCount_=1;
+   }
   }else if(previousTransport_!=tr){
    settlingPackets_=8;
+   windowAnchorSenderQpc_=0;windowAnchorPosition_=0;windowPacketCount_=0;
    phaseBaselineMs_=0.0;phaseLearningWindow_.clear();phaseState_=PhaseAcquisitionState::Warmup;phaseStableWindows_=0;phaseMadMs_=0.0;phaseLockSamples_=0;phaseLocked_=false;residualSquareEma_=0.0;
    precision_.phaseErrorMs=0.0;precision_.phaseBaselineMs=0.0;precision_.residualErrorMs=0.0;
    precision_.phaseLocked=false;precision_.predictionErrorMs=0.0;precision_.correctionMs=0.0;
