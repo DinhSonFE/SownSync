@@ -22,6 +22,9 @@ typedef struct {
   int64_t warning_ns;
   char department[64];
   char name[192];
+  uint32_t color;
+  int64_t end_ns;
+  int is_region;
   int valid;
 } SownCue;
 
@@ -35,6 +38,10 @@ SOWN_API int sown_get_cue_at(int index, SownCue* out_cue);
 SOWN_API int sown_is_reaper_connected(void);
 SOWN_API const char* sown_get_project_name(void);
 SOWN_API const char* sown_get_active_source(void);
+SOWN_API double sown_get_reaper_tempo(void);
+SOWN_API int64_t sown_get_reaper_project_length_ns(void);
+SOWN_API int64_t sown_get_reaper_edit_cursor_ns(void);
+SOWN_API uint32_t sown_get_reaper_project_revision(void);
 SOWN_API const char* sown_version(void);
 
 #ifdef __cplusplus
