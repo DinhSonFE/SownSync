@@ -462,7 +462,9 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
   }else{
    // V0.2.8.3: while STOPPED, never chase a continuously moving source value.
    // A real cursor seek becomes stable for consecutive packets, then is accepted.
-   constexpr TimeNs kStoppedStableToleranceNs=secondsToNs(0.002);
+   // secondsToNs() is a runtime helper, so MSVC cannot use it in constexpr.
+   // 2 ms expressed directly in the core's nanosecond timebase.
+   constexpr TimeNs kStoppedStableToleranceNs=2'000'000;
    constexpr int kStoppedStablePackets=3;
    if(std::llabs(pos-stoppedCandidatePosition_)<=kStoppedStableToleranceNs){
     ++stoppedCandidatePackets_;
