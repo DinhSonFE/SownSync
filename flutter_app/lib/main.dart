@@ -75,24 +75,37 @@ class _WorkspaceState extends State<Workspace>{
  }
  Widget _show() {
    return LayoutBuilder(builder: (context, constraints) {
-     final compact = constraints.maxWidth < 1050 || constraints.maxHeight < 650;
+     final narrow = constraints.maxWidth < 760;
+     final compact = constraints.maxWidth < 1180 || constraints.maxHeight < 720;
+     if (narrow) {
+       return SingleChildScrollView(
+         padding: const EdgeInsets.all(10),
+         child: Column(children: [
+           _hero(true),
+           const SizedBox(height: 10),
+           SizedBox(height: 330, child: _cueDeck(compact: true, stacked: true)),
+           const SizedBox(height: 10),
+           SizedBox(height: 76, child: _compactStatus(minimal: true)),
+         ]),
+       );
+     }
      return Padding(
-       padding: EdgeInsets.all(compact ? 12 : 20),
+       padding: EdgeInsets.all(compact ? 12 : 18),
        child: Column(children: [
          _hero(compact),
-         SizedBox(height: compact ? 10 : 14),
+         SizedBox(height: compact ? 10 : 12),
          Expanded(
-           child: compact
-               ? _cueDeck(compact: true)
-               : Row(children: [
-                   Expanded(flex: 7, child: _cueDeck()),
-                   const SizedBox(width: 14),
-                   SizedBox(width: 290, child: _rightRail()),
-                 ]),
+           child: Row(children: [
+             Expanded(child: _cueDeck(compact: compact)),
+             if (!compact) ...[
+               const SizedBox(width: 12),
+               SizedBox(width: 250, child: _rightRail()),
+             ],
+           ]),
          ),
          if (compact) ...[
            const SizedBox(height: 10),
-           SizedBox(height: 92, child: _compactStatus()),
+           SizedBox(height: 76, child: _compactStatus()),
          ],
        ]),
      );
@@ -106,7 +119,7 @@ class _WorkspaceState extends State<Workspace>{
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    final nextText = next != null ? 'NEXT  ${clock(countdown)}' : 'NO UPCOMING CUE';
    return Container(
-     height: compact ? 205 : 250,
+     height: compact ? 190 : 220,
      padding: EdgeInsets.fromLTRB(compact ? 18 : 26, 16, compact ? 18 : 26, 14),
      decoration: _box(),
      child: Column(children: [
@@ -121,7 +134,7 @@ class _WorkspaceState extends State<Workspace>{
          child: Text(
            clock(pos),
            style: TextStyle(
-             fontSize: compact ? 52 : 68,
+             fontSize: compact ? 46 : 60,
              fontWeight: FontWeight.w300,
              letterSpacing: 2,
              fontFeatures: const [FontFeature.tabularFigures()],
@@ -159,7 +172,7 @@ class _WorkspaceState extends State<Workspace>{
    });
  }
 
- Widget _cueDeck({bool compact = false}) {
+ Widget _cueDeck({bool compact = false, bool stacked = false}) {
    return Container(
      padding: EdgeInsets.all(compact ? 14 : 18),
      decoration: _box(),
@@ -167,11 +180,17 @@ class _WorkspaceState extends State<Workspace>{
        Row(children: [_label('SHOW CUES'), const Spacer(), Text('$cueCount CUES', style: const TextStyle(color: Colors.white38, fontSize: 10))]),
        const SizedBox(height: 12),
        Expanded(
-         child: Row(children: [
-           Expanded(child: _cueCard('CURRENT', current, false, compact)),
-           const SizedBox(width: 10),
-           Expanded(child: _cueCard('NEXT', next, true, compact)),
-         ]),
+         child: stacked
+             ? Column(children: [
+                 Expanded(child: _cueCard('CURRENT', current, false, true)),
+                 const SizedBox(height: 8),
+                 Expanded(child: _cueCard('NEXT', next, true, true)),
+               ])
+             : Row(children: [
+                 Expanded(flex: 4, child: _cueCard('CURRENT', current, false, compact)),
+                 const SizedBox(width: 10),
+                 Expanded(flex: 6, child: _cueCard('NEXT', next, true, compact)),
+               ]),
        ),
      ]),
    );
@@ -265,26 +284,24 @@ class _WorkspaceState extends State<Workspace>{
    );
  }
 
- Widget _compactStatus() {
+ Widget _compactStatus({bool minimal = false}) {
    final syncText = locked ? 'SYNC READY' : connected ? 'SYNCING' : 'OFFLINE';
    final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
    return Container(
-     padding: const EdgeInsets.symmetric(horizontal: 18, vertical: 12),
+     padding: EdgeInsets.symmetric(horizontal: minimal ? 12 : 18, vertical: 10),
      decoration: _box(),
      child: Row(children: [
        _statusDot(connected ? Colors.greenAccent : Colors.white24),
        const SizedBox(width: 9),
-       Text(source.isEmpty ? 'NO SOURCE' : source, style: const TextStyle(fontWeight: FontWeight.w700)),
-       const SizedBox(width: 20),
-       Container(width: 1, height: 28, color: kLine),
-       const SizedBox(width: 20),
+       Flexible(child: Text(source.isEmpty ? 'NO SOURCE' : source, overflow: TextOverflow.ellipsis, style: const TextStyle(fontWeight: FontWeight.w700))),
+       const SizedBox(width: 14),
        _miniStatus('SYNC', syncText, locked ? Colors.greenAccent : Colors.orangeAccent),
-       const SizedBox(width: 28),
-       _miniStatus('TRANSPORT', transportText, transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed),
-       const SizedBox(width: 28),
-       _miniStatus('CUES', '$cueCount', Colors.white),
-       const Spacer(),
-       Text(native ? 'CORE v0.5.0' : 'CORE NOT LOADED', style: const TextStyle(color: Colors.white24, fontSize: 9)),
+       if (!minimal) ...[
+         const SizedBox(width: 22),
+         _miniStatus('TRANSPORT', transportText, transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed),
+         const SizedBox(width: 22),
+         _miniStatus('CUES', '$cueCount', Colors.white),
+       ],
      ]),
    );
  }
