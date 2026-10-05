@@ -122,7 +122,7 @@ class _WorkspaceState extends State<Workspace>{
        ]),
        Expanded(child: Center(child: FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontFamily: 'Digital-7', fontFamilyFallback: const ['DSEG7 Classic','Seven Segment','Cascadia Mono'], fontSize: compact ? 58 : wide ? 94 : 80, fontWeight: FontWeight.w400, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
+         child: Text(clock(pos), style: TextStyle(fontFamily: 'DSEG7Modern', fontFamilyFallback: const ['Cascadia Mono'], fontSize: compact ? 58 : wide ? 94 : 80, fontWeight: FontWeight.w400, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
        ))),
        const SizedBox(height: 1),
        Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
