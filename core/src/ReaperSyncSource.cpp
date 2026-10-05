@@ -445,6 +445,12 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
   updatePrecision(p.sequence,p.senderQpc,p.senderQpcFreq,pos,tr,now);
   const bool discontinuity=(state_.transport==TransportState::Playing&&tr==TransportState::Playing&&std::abs(errMs)>150.0);
   const bool transportChanged=state_.transport!=tr;
+  if(transportChanged){
+   ++precision_.transportTransitions;
+   if(tr==TransportState::Playing)++precision_.playTransitions;
+   else if(tr==TransportState::Paused)++precision_.pauseTransitions;
+   else ++precision_.stopTransitions;
+  }
   if(discontinuity){
    anchorPosition_=pos;anchorLocal_=now;
    stoppedCandidatePackets_=0;
@@ -452,6 +458,7 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
    // The first STOPPED/PAUSED packet is authoritative: freeze immediately.
    anchorPosition_=pos;anchorLocal_=now;
    stoppedCandidatePosition_=pos;stoppedCandidatePackets_=1;
+   lastStoppedAnchor_=pos;
    recoveringFromGap_=false;
   }else if(tr==TransportState::Playing){
    double alpha=std::abs(errMs)<2.0?0.08:(std::abs(errMs)<20.0?0.25:0.65);
@@ -472,7 +479,12 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
     stoppedCandidatePosition_=pos;
     stoppedCandidatePackets_=1;
    }
-   if(stoppedCandidatePackets_>=kStoppedStablePackets){
+   if(stoppedCandidatePackets_==kStoppedStablePackets){
+    // Accept one stable stopped-position change as a deliberate cursor seek.
+    if(std::llabs(stoppedCandidatePosition_-lastStoppedAnchor_)>kStoppedStableToleranceNs){
+     ++precision_.stoppedSeeks;
+     lastStoppedAnchor_=stoppedCandidatePosition_;
+    }
     anchorPosition_=stoppedCandidatePosition_;
     anchorLocal_=now;
    }
