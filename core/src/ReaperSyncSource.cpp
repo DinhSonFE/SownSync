@@ -116,14 +116,37 @@ void ReaperSyncSource::stop(){
 }
 
 void ReaperSyncSource::updateHealthUnlocked(Clock::time_point now) const {
- if(lastPacket_==Clock::time_point::min()){precision_.health=SyncHealth::NoSignal;precision_.quality="NO SIGNAL";precision_.clockMode="WAITING";precision_.packetAgeMs=-1;return;}
- const double age=std::chrono::duration<double,std::milli>(now-lastPacket_).count();precision_.packetAgeMs=age;
- if(age<100.0)precision_.health=SyncHealth::Locked;
- else if(age<350.0)precision_.health=SyncHealth::Holdover;
- else if(age<750.0)precision_.health=SyncHealth::Degraded;
- else precision_.health=SyncHealth::Lost;
- if(precision_.health==SyncHealth::Lost){precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";return;}
- if(precision_.health==SyncHealth::Holdover)precision_.clockMode="HOLDOVER";else if(precision_.health==SyncHealth::Degraded)precision_.clockMode="HOLDOVER";else precision_.clockMode="DISCIPLINED";
+ if(lastPacket_==Clock::time_point::min()){
+  precision_.health=SyncHealth::NoSignal;precision_.quality="NO SIGNAL";
+  precision_.clockMode="WAITING";precision_.packetAgeMs=-1;precision_.holdoverAgeMs=0.0;
+  previousHealth_=SyncHealth::NoSignal;return;
+ }
+ const double age=std::chrono::duration<double,std::milli>(now-lastPacket_).count();
+ precision_.packetAgeMs=age;
+ SyncHealth next=SyncHealth::Locked;
+ if(age>=750.0)next=SyncHealth::Lost;
+ else if(age>=350.0)next=SyncHealth::Degraded;
+ else if(age>=100.0)next=SyncHealth::Holdover;
+
+ if(next!=previousHealth_){
+  if(next==SyncHealth::Holdover){
+   ++precision_.holdoverEntries;holdoverStarted_=now;
+  }else if(next==SyncHealth::Degraded){
+   ++precision_.degradedEntries;
+   if(holdoverStarted_==Clock::time_point::min())holdoverStarted_=now;
+  }else if(next==SyncHealth::Lost){
+   ++precision_.lostEvents;
+   if(holdoverStarted_==Clock::time_point::min())holdoverStarted_=now;
+  }
+  previousHealth_=next;
+ }
+ precision_.health=next;
+ precision_.holdoverAgeMs=(next==SyncHealth::Holdover||next==SyncHealth::Degraded||next==SyncHealth::Lost)
+  ?(holdoverStarted_==Clock::time_point::min()?age:std::chrono::duration<double,std::milli>(now-holdoverStarted_).count()):0.0;
+
+ if(next==SyncHealth::Lost){precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";return;}
+ if(next==SyncHealth::Holdover||next==SyncHealth::Degraded)precision_.clockMode="HOLDOVER";
+ else precision_.clockMode="DISCIPLINED";
  const double score=precision_.latencyP95Ms+precision_.jitterMs*2.0+std::min(std::abs(precision_.driftPpm)/50.0,20.0);
  precision_.quality=score<5.0?"EXCELLENT":(score<15.0?"GOOD":(score<40.0?"FAIR":"UNSTABLE"));
 }
@@ -361,9 +384,16 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
   auto tr=p.transport==1?TransportState::Playing:(p.transport==2?TransportState::Paused:TransportState::Stopped);
   TimeNs pos=secondsToNs(std::max(0.0,p.positionSec));
 
-  const bool timedOut = lastPacket_!=Clock::time_point::min() &&
-      now-lastPacket_>=std::chrono::milliseconds(750);
-  const bool reconnect = everConnected_ && (wasLost_ || timedOut);
+  const double gapMs=lastPacket_==Clock::time_point::min()?0.0:
+      std::chrono::duration<double,std::milli>(now-lastPacket_).count();
+  const bool timedOut=gapMs>=750.0;
+  const bool reconnect=everConnected_&&(wasLost_||timedOut);
+  const bool shortRecovery=everConnected_&&!reconnect&&gapMs>=100.0;
+
+  // Predict through a short packet outage using the last disciplined clock.
+  // A sub-750 ms gap must not reset the estimator or snap the show timeline.
+  const TimeNs predictedBeforeRecovery=predictedPositionUnlocked(now);
+  const double recoveryErrMs=(double)(pos-predictedBeforeRecovery)/1e6;
 
   if(reconnect){
    ++precision_.reconnects;
@@ -372,18 +402,30 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
    anchorLocal_=now;
    state_.transport=tr;
    wasLost_=false;
+   previousHealth_=SyncHealth::Locked;
+   holdoverStarted_=Clock::time_point::min();
+  }else if(shortRecovery){
+   ++precision_.holdoverRecoveries;
+   precision_.lastRecoveryErrorMs=recoveryErrMs;
+   previousHealth_=SyncHealth::Locked;
+   holdoverStarted_=Clock::time_point::min();
+   recoveringFromGap_=true;
   }
   everConnected_=true;
 
-  const TimeNs predicted=predictedPositionUnlocked(now);
-  const double errMs=reconnect?0.0:(double)(pos-predicted)/1e6;
+  const TimeNs predicted=reconnect?pos:predictedBeforeRecovery;
+  const double errMs=reconnect?0.0:recoveryErrMs;
   updatePrecision(p.sequence,p.senderQpc,p.senderQpcFreq,pos,tr,now);
   const bool discontinuity=(state_.transport==TransportState::Playing&&tr==TransportState::Playing&&std::abs(errMs)>150.0);
   if(discontinuity||state_.transport!=tr){anchorPosition_=pos;anchorLocal_=now;}
   else if(tr==TransportState::Playing){
-   const double alpha=std::abs(errMs)<2.0?0.08:(std::abs(errMs)<20.0?0.25:0.65);
+   double alpha=std::abs(errMs)<2.0?0.08:(std::abs(errMs)<20.0?0.25:0.65);
+   // After HOLDOVER/DEGRADED recovery, slew back gently instead of applying
+   // the normal large-error correction in one packet.
+   if(recoveringFromGap_)alpha=std::min(alpha,0.12);
    anchorPosition_=predicted+static_cast<TimeNs>((double)(pos-predicted)*alpha);anchorLocal_=now;
-  }else{anchorPosition_=pos;anchorLocal_=now;}
+   recoveringFromGap_=false;
+  }else{anchorPosition_=pos;anchorLocal_=now;recoveringFromGap_=false;}
   state_.source=SyncSource::Reaper;state_.sequence=p.sequence;state_.playbackRate=p.rate;state_.fps=p.fps>0?p.fps:25;state_.transport=tr;lastPacket_=now;projectName_=std::string(p.project,std::char_traits<char>::length(p.project));updateHealthUnlocked(now);
  }else if(h.type==2&&len>=(int)sizeof(MarkerBoundaryPacket)){auto&p=*(const MarkerBoundaryPacket*)d;markerGeneration_=p.generation;markerBuild_.clear();markerBuild_.reserve(p.count);}
  else if(h.type==3&&len>=(int)sizeof(MarkerPacket)){auto&p=*(const MarkerPacket*)d;if(p.generation!=markerGeneration_||p.isRegion)return;std::string raw(p.name,std::char_traits<char>::length(p.name)),dept="ALL",name=raw;if(auto x=raw.find('|');x!=std::string::npos){dept=raw.substr(0,x);name=raw.substr(x+1);}markerBuild_.push_back({p.id,secondsToNs(p.positionSec),dept,name,secondsToNs(5)});}
