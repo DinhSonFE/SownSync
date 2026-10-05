@@ -42,6 +42,7 @@ SOWN_API double sown_get_reaper_tempo(void);
 SOWN_API int64_t sown_get_reaper_project_length_ns(void);
 SOWN_API int64_t sown_get_reaper_edit_cursor_ns(void);
 SOWN_API uint32_t sown_get_reaper_project_revision(void);
+SOWN_API int sown_get_reaper_waveform(float* out_peaks, int capacity, int64_t* start_ns, int64_t* step_ns);
 SOWN_API const char* sown_version(void);
 
 #ifdef __cplusplus
