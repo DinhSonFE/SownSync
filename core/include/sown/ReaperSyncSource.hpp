@@ -4,6 +4,7 @@
 #include <atomic>
 #include <chrono>
 #include <cstdint>
+#include <fstream>
 #include <mutex>
 #include <string>
 #include <thread>
@@ -62,6 +63,10 @@ private:
     void updateHealthUnlocked(Clock::time_point now) const;
     TimeNs predictedPositionUnlocked(Clock::time_point now) const;
     void resetEstimatorUnlocked();
+    void logPhaseSampleUnlocked(std::uint64_t sequence, std::uint64_t senderQpc,
+                                double senderDeltaMs, TimeNs positionNs,
+                                double positionDeltaMs, double rawPhaseMs,
+                                double baselineMs, double residualMs);
     unsigned short port_;
     std::atomic<bool> running_{false};
     std::thread thread_;
@@ -99,6 +104,9 @@ private:
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
     std::atomic<std::uint64_t> packetsReceived_{0};
+    std::ofstream phaseLog_;
+    std::string phaseLogPath_;
+    bool phaseLogHeaderWritten_{false};
 #ifdef _WIN32
     std::uintptr_t socket_{~std::uintptr_t{0}};
 #endif
