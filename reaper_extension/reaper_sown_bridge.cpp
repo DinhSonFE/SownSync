@@ -9,6 +9,7 @@
 #include <cstdint>
 #include <cstring>
 #include <cstdio>
+#include <cmath>
 
 #define REAPER_PLUGIN_VERSION 0x20E
 // REAPER may report a newer compatible caller_version. Do not reject the
