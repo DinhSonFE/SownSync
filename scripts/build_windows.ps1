@@ -6,6 +6,13 @@ $ErrorActionPreference = "Stop"
 $root = (Resolve-Path (Join-Path $PSScriptRoot "..")).Path
 $coreBuild = Join-Path $root "build-native"
 $flutter = Join-Path $root "flutter_app"
+$fontDir = Join-Path $flutter "assets\fonts"
+$fontFile = Join-Path $fontDir "DSEG7Modern-Regular.ttf"
+if (!(Test-Path $fontFile)) {
+  Write-Host "[SOWN] Fetching bundled DSEG7 Modern font..." -ForegroundColor Cyan
+  New-Item -ItemType Directory -Force -Path $fontDir | Out-Null
+  Invoke-WebRequest -Uri "https://raw.githubusercontent.com/NoahGadelrab/DSEG/main/DSEG7Modern-Regular.ttf" -OutFile $fontFile
+}
 
 Write-Host "[SOWN] Configuring native core..." -ForegroundColor Cyan
 cmake -S $root -B $coreBuild -A x64
