@@ -67,7 +67,7 @@ class _WorkspaceState extends State<Workspace>{
        const Text('SOWN', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
        const Text(' SYNC', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kRed, letterSpacing: 1)),
        const SizedBox(width: 28),
-       Container(width: 1, height: 22, color: kLine),
+       Container(width: 1, height: 18, color: kLine),
        const SizedBox(width: 20),
        Expanded(child: Text(project.isEmpty ? 'UNTITLED SHOW' : project, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600))),
        _pill(connected ? 'CONNECTED' : 'OFFLINE', connected ? Colors.greenAccent : Colors.white38),
@@ -98,7 +98,7 @@ class _WorkspaceState extends State<Workspace>{
          SizedBox(height: compact ? 10 : 12),
          _operatorStrip(compact: compact),
          SizedBox(height: compact ? 10 : 12),
-         Expanded(child: Row(children:[Expanded(flex:7,child:_cueDeck(compact: compact)),SizedBox(width: compact?10:12),Expanded(flex:3,child:_cueListPanel(compact))])),
+         Expanded(child: Row(children:[Expanded(flex:2,child:_cueDeck(compact: compact)),SizedBox(width: compact?10:12),Expanded(flex:1,child:_cueListPanel(compact))])),
        ]),
      );
    });
@@ -110,7 +110,7 @@ class _WorkspaceState extends State<Workspace>{
    final tcColor = playing ? Colors.greenAccent : paused ? Colors.orangeAccent : kRed;
    final fpsText = fps > 0 ? fps.toStringAsFixed(2) : '--';
    return Container(
-     height: compact ? 190 : wide ? 250 : 220,
+     height: compact ? 210 : wide ? 310 : 250,
      padding: EdgeInsets.fromLTRB(compact ? 18 : 28, 16, compact ? 18 : 28, 14),
      decoration: _box(),
      child: Column(children: [
@@ -122,7 +122,7 @@ class _WorkspaceState extends State<Workspace>{
        const Spacer(),
        FittedBox(
          fit: BoxFit.scaleDown,
-         child: Text(clock(pos), style: TextStyle(fontSize: compact ? 58 : wide ? 104 : 78, fontWeight: FontWeight.w300, letterSpacing: wide ? 4 : 3, fontFeatures: const [FontFeature.tabularFigures()])),
+         child: Text(clock(pos), style: TextStyle(fontFamily: 'Consolas', fontSize: compact ? 72 : wide ? 138 : 96, fontWeight: FontWeight.w600, color: const Color(0xFFFF4057), letterSpacing: wide ? 6 : 4, fontFeatures: const [FontFeature.tabularFigures()], shadows: const [Shadow(color: Color(0x66FF334D), blurRadius: 16)])),
        ),
        const SizedBox(height: 2),
        Text('$fpsText FPS   •   $source MASTER', style: TextStyle(color: Colors.white54, fontSize: wide ? 13 : 11, fontWeight: FontWeight.w600, letterSpacing: 1.3)),
@@ -136,9 +136,9 @@ class _WorkspaceState extends State<Workspace>{
    return LayoutBuilder(builder: (context, constraints) => SizedBox(
      height: 22,
      child: Stack(children: [
-       Positioned(top: 11, left: 0, right: 0, child: Container(height: 1, color: kLine)),
-       Positioned(top: 3, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 17, color: kRed)),
-       ...List.generate(9, (i) => Positioned(left: constraints.maxWidth * i / 8 - .5, top: 8, child: Container(width: 1, height: 7, color: Colors.white12))),
+       Positioned(top: 9, left: 0, right: 0, child: Container(height: 1, color: kLine)),
+       Positioned(top: 1, left: constraints.maxWidth * .5 - 1, child: Container(width: 2, height: 16, color: kRed)),
+       ...List.generate(9, (i) => Positioned(left: constraints.maxWidth * i / 8 - .5, top: 6, child: Container(width: 1, height: 7, color: Colors.white12))),
      ]),
    ));
  }
@@ -148,7 +148,7 @@ class _WorkspaceState extends State<Workspace>{
    final transportText = transport == 1 ? 'PLAYING' : transport == 2 ? 'PAUSED' : 'STOPPED';
    final transportColor = transport == 1 ? Colors.greenAccent : transport == 2 ? Colors.orangeAccent : kRed;
    return Container(
-     height: compact ? 58 : 64,
+     height: compact ? 62 : 70,
      padding: const EdgeInsets.symmetric(horizontal: 18),
      decoration: _box(),
      child: Row(children: [
@@ -169,7 +169,7 @@ class _WorkspaceState extends State<Workspace>{
        if (next != null) ...[
          const Text('NEXT IN', style: TextStyle(color: Colors.white30, fontSize: 8, fontWeight: FontWeight.w800)),
          const SizedBox(width: 10),
-         Text(clock(countdown), style: const TextStyle(color: kRed, fontSize: 17, fontWeight: FontWeight.w900, fontFeatures: [FontFeature.tabularFigures()])),
+         Text(clock(countdown), style: const TextStyle(color: kRed, fontSize: 20, fontWeight: FontWeight.w900, fontFeatures: [FontFeature.tabularFigures()])),
        ],
      ]),
    );
@@ -190,9 +190,9 @@ class _WorkspaceState extends State<Workspace>{
                  Expanded(flex: 2, child: _nextCard(compact)),
                ])
              : Row(children: [
-                 Expanded(flex: 4, child: _currentCard(compact)),
+                 Expanded(flex: 5, child: _currentCard(compact)),
                  const SizedBox(width: 10),
-                 Expanded(flex: 6, child: _nextCard(compact)),
+                 Expanded(flex: 5, child: _nextCard(compact)),
                ]),
        ),
      ]),
@@ -206,7 +206,7 @@ class _WorkspaceState extends State<Workspace>{
      child: Column(crossAxisAlignment: CrossAxisAlignment.start, children: [
        Row(children: [_label('CURRENT'), const Spacer(), if (current != null) _pill(current!.department.isEmpty ? 'CUE' : current!.department, Colors.white54)]),
        const Spacer(),
-       Text(current?.name ?? 'NO ACTIVE CUE', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 20 : 24, fontWeight: FontWeight.w700, color: current == null ? Colors.white24 : Colors.white)),
+       Text(current?.name ?? 'NO ACTIVE CUE', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 22 : 30, fontWeight: FontWeight.w700, color: current == null ? Colors.white24 : Colors.white)),
        const SizedBox(height: 7),
        if (current != null) Text('#${current!.id}   ${clock(current!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 10, fontFeatures: [FontFeature.tabularFigures()])),
        const Spacer(),
@@ -231,7 +231,7 @@ class _WorkspaceState extends State<Workspace>{
          if (has) _pill(next!.department.isEmpty ? 'CUE' : next!.department, kRed),
        ]),
        const Spacer(),
-       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 26 : 34, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
+       Text(has ? next!.name : 'READY', maxLines: 2, overflow: TextOverflow.ellipsis, style: TextStyle(fontSize: compact ? 28 : 38, height: 1.05, fontWeight: FontWeight.w800, color: has ? Colors.white : Colors.white30)),
        if (has) ...[
          const SizedBox(height: 8),
          Text('#${next!.id}   ${clock(next!.timeNs)}', style: const TextStyle(color: Colors.white38, fontSize: 11, fontFeatures: [FontFeature.tabularFigures()])),
@@ -242,7 +242,7 @@ class _WorkspaceState extends State<Workspace>{
        FittedBox(
          fit: BoxFit.scaleDown,
          alignment: Alignment.centerLeft,
-         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 32 : 44, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
+         child: Text(has ? clock(countdown) : '--:--:--.---', style: TextStyle(fontSize: compact ? 38 : 54, fontWeight: FontWeight.w900, color: has ? kRed : Colors.white24, fontFeatures: const [FontFeature.tabularFigures()])),
        ),
      ]),
    );
