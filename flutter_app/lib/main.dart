@@ -57,7 +57,22 @@ class _WorkspaceState extends State<Workspace>{
      ]),
    );
  }
- Widget _top()=>Container(height:72,padding:const EdgeInsets.symmetric(horizontal:28),decoration:const BoxDecoration(border:Border(bottom:BorderSide(color:kLine))),child:Row(children:[const Text('SOWN',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900,letterSpacing:1)),const Text(' SYNC',style:TextStyle(fontSize:20,fontWeight:FontWeight.w900,color:kRed,letterSpacing:1)),const SizedBox(width:28),Container(width:1,height:22,color:kLine),const SizedBox(width:20),Expanded(child:Text(project.isEmpty?'UNTITLED SHOW':project,overflow:TextOverflow.ellipsis,style:const TextStyle(color:Colors.white70,fontWeight:FontWeight.w600))),_pill(connected?'CONNECTED':'OFFLINE',connected?Colors.greenAccent:Colors.white38)]);
+ Widget _top() {
+   return Container(
+     height: 72,
+     padding: const EdgeInsets.symmetric(horizontal: 28),
+     decoration: const BoxDecoration(border: Border(bottom: BorderSide(color: kLine))),
+     child: Row(children: [
+       const Text('SOWN', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, letterSpacing: 1)),
+       const Text(' SYNC', style: TextStyle(fontSize: 20, fontWeight: FontWeight.w900, color: kRed, letterSpacing: 1)),
+       const SizedBox(width: 28),
+       Container(width: 1, height: 22, color: kLine),
+       const SizedBox(width: 20),
+       Expanded(child: Text(project.isEmpty ? 'UNTITLED SHOW' : project, overflow: TextOverflow.ellipsis, style: const TextStyle(color: Colors.white70, fontWeight: FontWeight.w600))),
+       _pill(connected ? 'CONNECTED' : 'OFFLINE', connected ? Colors.greenAccent : Colors.white38),
+     ]),
+   );
+ }
  Widget _show()=>Padding(padding:const EdgeInsets.all(20),child:Column(children:[_hero(),const SizedBox(height:14),Expanded(child:Row(children:[Expanded(flex:7,child:_cueDeck()),const SizedBox(width:14),Expanded(flex:3,child:_rightRail())]))]));
  Widget _hero(){final playing=transport==1,paused=transport==2;final tcColor=playing?Colors.greenAccent:paused?Colors.orangeAccent:kRed;return Container(height:270,padding:const EdgeInsets.fromLTRB(26,20,26,18),decoration:_box(),child:Column(children:[Row(children:[_label('MASTER TIMECODE'),const Spacer(),_pill(playing?'PLAYING':paused?'PAUSED':'STOPPED',tcColor)]),const Spacer(),Text(clock(pos),style:const TextStyle(fontSize:70,fontWeight:FontWeight.w300,letterSpacing:2,fontFeatures:[FontFeature.tabularFigures()])),const SizedBox(height:8),Text('${fps>0?fps.toStringAsFixed(2):'--'} FPS   •   $source MASTER',style:const TextStyle(color:Colors.white38,fontSize:11,letterSpacing:1.2)),const Spacer(),_timeline(),const SizedBox(height:12),Row(children:[Text(clock(pos,millis:false),style:const TextStyle(color:Colors.white38,fontSize:11)),const Spacer(),Text(next!=null?'NEXT  ${clock(countdown)}':'NO UPCOMING CUE',style:TextStyle(color:next!=null?kRed:Colors.white24,fontSize:11,fontWeight:FontWeight.w700))]) ]);}
  Widget _timeline()=>LayoutBuilder(builder:(c,x){return SizedBox(height:34,child:Stack(children:[Positioned(top:16,left:0,right:0,child:Container(height:2,color:kLine)),Positioned(top:8,left:x.maxWidth*.5-1,child:Container(width:2,height:18,color:kRed)),...List.generate(9,(i)=>Positioned(left:x.maxWidth*i/8-0.5,top:13,child:Container(width:1,height:8,color:Colors.white12)))]));});
