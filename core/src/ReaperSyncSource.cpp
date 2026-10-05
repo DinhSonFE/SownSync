@@ -259,18 +259,26 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
     }
    }
 
-   const double residualMs=windowPhaseMs-phaseBaselineMs_;
+   // V0.2.6.1: a window phase sample is valid only on the packet that
+   // completes that window. Between completed windows keep the last published
+   // residual; never subtract a new baseline from a stale windowPhaseMs.
+   double residualMs=precision_.residualErrorMs;
+   if(windowReady){
+    residualMs=windowPhaseMs-phaseBaselineMs_;
+    precision_.residualErrorMs=residualMs;
+    precision_.predictionErrorMs=residualMs;
+   }
    precision_.phaseBaselineMs=phaseBaselineMs_;
-   precision_.residualErrorMs=residualMs;
    precision_.phaseLocked=phaseLocked_;
    precision_.phaseState=phaseState_;
    precision_.phaseMadMs=phaseMadMs_;
    precision_.phaseStableWindows=phaseStableWindows_;
    precision_.phaseSamples=phaseLockSamples_;
-   precision_.predictionErrorMs=residualMs;
 
    const double senderDeltaMs=senderSec*1000.0;
    const double positionDeltaMs=(double)(pos-previousPacketPosition_)/1e6;
+   // CSV is still packet-by-packet for diagnostics. residualMs is the latest
+   // completed-window residual, so it cannot run away between windows.
    logPhaseSampleUnlocked(seq,qpc,senderDeltaMs,pos,positionDeltaMs,
                           packetPhaseMs,phaseBaselineMs_,residualMs);
 
