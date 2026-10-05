@@ -24,6 +24,12 @@ struct PrecisionStats {
     double predictionErrorMs{0.0};
     double packetRateHz{0.0};
     double packetAgeMs{0.0};
+    double holdoverAgeMs{0.0};
+    std::uint64_t holdoverEntries{0};
+    std::uint64_t holdoverRecoveries{0};
+    std::uint64_t degradedEntries{0};
+    std::uint64_t lostEvents{0};
+    double lastRecoveryErrorMs{0.0};
     double phaseErrorMs{0.0};
     double windowPhaseMs{0.0};
     int windowPackets{0};
@@ -105,6 +111,9 @@ private:
     Clock::time_point startedAt_{Clock::now()};
     bool everConnected_{false};
     mutable bool wasLost_{false};
+    mutable SyncHealth previousHealth_{SyncHealth::NoSignal};
+    mutable Clock::time_point holdoverStarted_{Clock::time_point::min()};
+    bool recoveringFromGap_{false};
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
