@@ -144,7 +144,10 @@ void ReaperSyncSource::updateHealthUnlocked(Clock::time_point now) const {
  precision_.holdoverAgeMs=(next==SyncHealth::Holdover||next==SyncHealth::Degraded||next==SyncHealth::Lost)
   ?(holdoverStarted_==Clock::time_point::min()?age:std::chrono::duration<double,std::milli>(now-holdoverStarted_).count()):0.0;
 
- if(next==SyncHealth::Lost){precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";return;}
+ if(next==SyncHealth::Lost){
+  precision_.quality="NO SIGNAL";precision_.clockMode="FROZEN";
+  return;
+ }
  if(next==SyncHealth::Holdover||next==SyncHealth::Degraded)precision_.clockMode="HOLDOVER";
  else precision_.clockMode="DISCIPLINED";
  const double score=precision_.latencyP95Ms+precision_.jitterMs*2.0+std::min(std::abs(precision_.driftPpm)/50.0,20.0);
@@ -162,7 +165,12 @@ SyncState ReaperSyncSource::getState()const{
  std::lock_guard l(mutex_);auto now=Clock::now();updateHealthUnlocked(now);auto o=state_;
  o.connected=precision_.health!=SyncHealth::NoSignal&&precision_.health!=SyncHealth::Lost;
  o.locked=precision_.health==SyncHealth::Locked||precision_.health==SyncHealth::Holdover;
- if(o.connected)o.positionNs=predictedPositionUnlocked(now);else o.positionNs=anchorPosition_;
+ if(o.connected)o.positionNs=predictedPositionUnlocked(now);
+ else{
+  o.positionNs=anchorPosition_;
+  // V0.2.8.1: never expose stale PLAYING after the master source is LOST.
+  if(precision_.health==SyncHealth::Lost)o.transport=TransportState::Stopped;
+ }
  if(precision_.health==SyncHealth::Lost)wasLost_=true;
  return o;
 }
@@ -400,21 +408,40 @@ void ReaperSyncSource::handlePacket(const char*d,int len){
    resetEstimatorUnlocked();
    anchorPosition_=pos;
    anchorLocal_=now;
+   // First packet after a full reconnect is authoritative, including STOPPED.
    state_.transport=tr;
+   previousTransport_=tr;
    wasLost_=false;
    previousHealth_=SyncHealth::Locked;
    holdoverStarted_=Clock::time_point::min();
+   recoveringFromGap_=false;
   }else if(shortRecovery){
    ++precision_.holdoverRecoveries;
    precision_.lastRecoveryErrorMs=recoveryErrMs;
    previousHealth_=SyncHealth::Locked;
    holdoverStarted_=Clock::time_point::min();
-   recoveringFromGap_=true;
+   if(tr==TransportState::Playing){
+    recoveringFromGap_=true;
+   }else{
+    // STOPPED/PAUSED from REAPER cancels holdover immediately. Do not slew
+    // from the stale PLAYING prediction; snap the anchor to REAPER's position.
+    recoveringFromGap_=false;
+    anchorPosition_=pos;
+    anchorLocal_=now;
+    clockRateScale_=1.0;
+    driftPpmFiltered_=0.0;
+    sourceSlopeEma_=1.0;
+    windowAnchorSenderQpc_=0;
+    windowAnchorPosition_=0;
+    windowPacketCount_=0;
+    settlingPackets_=8;
+   }
   }
   everConnected_=true;
 
-  const TimeNs predicted=reconnect?pos:predictedBeforeRecovery;
-  const double errMs=reconnect?0.0:recoveryErrMs;
+  const bool authoritativeNonPlaying=(tr!=TransportState::Playing)&&(reconnect||shortRecovery);
+  const TimeNs predicted=(reconnect||authoritativeNonPlaying)?pos:predictedBeforeRecovery;
+  const double errMs=(reconnect||authoritativeNonPlaying)?0.0:recoveryErrMs;
   updatePrecision(p.sequence,p.senderQpc,p.senderQpcFreq,pos,tr,now);
   const bool discontinuity=(state_.transport==TransportState::Playing&&tr==TransportState::Playing&&std::abs(errMs)>150.0);
   if(discontinuity||state_.transport!=tr){anchorPosition_=pos;anchorLocal_=now;}
