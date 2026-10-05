@@ -24,6 +24,7 @@ struct StatePacket { WireHeader h; std::uint64_t sequence; std::uint64_t senderQ
 struct MarkerPacket { WireHeader h; std::uint32_t generation,id; double positionSec,endSec; std::uint32_t color; std::uint8_t isRegion,reserved[3]; char name[256]; };
 struct ProjectStatePacket { WireHeader h; std::uint64_t sequence; double cursorSec,lengthSec,tempo; std::uint32_t stateChangeCount; std::uint8_t transport,reserved[3]; };
 struct MarkerBoundaryPacket { WireHeader h; std::uint32_t generation,count; };
+struct WaveformPacket { WireHeader h; std::uint64_t sequence; double startSec,secondsPerSample; std::uint16_t count; std::uint8_t channels,reserved; float peaks[256]; };
 #pragma pack(pop)
 
 static bool validHeader(const WireHeader& h,int len){return std::memcmp(h.magic,"SOWN",4)==0&&h.version==4&&h.size<=static_cast<std::uint32_t>(len);}
@@ -181,6 +182,9 @@ double ReaperSyncSource::tempo()const{std::lock_guard l(mutex_);return tempo_;}
 TimeNs ReaperSyncSource::projectLengthNs()const{std::lock_guard l(mutex_);return projectLengthNs_;}
 TimeNs ReaperSyncSource::editCursorNs()const{std::lock_guard l(mutex_);return editCursorNs_;}
 std::uint32_t ReaperSyncSource::projectRevision()const{std::lock_guard l(mutex_);return projectRevision_;}
+std::vector<float> ReaperSyncSource::waveformPeaks()const{std::lock_guard l(mutex_);return waveformPeaks_;}
+TimeNs ReaperSyncSource::waveformStartNs()const{std::lock_guard l(mutex_);return waveformStartNs_;}
+TimeNs ReaperSyncSource::waveformStepNs()const{std::lock_guard l(mutex_);return waveformStepNs_;}
 double ReaperSyncSource::packetAgeMs()const{std::lock_guard l(mutex_);updateHealthUnlocked(Clock::now());return precision_.packetAgeMs;}
 PrecisionStats ReaperSyncSource::precisionStats()const{std::lock_guard l(mutex_);auto now=Clock::now();updateHealthUnlocked(now);precision_.uptimeSec=std::chrono::duration<double>(now-startedAt_).count();return precision_;}
 
