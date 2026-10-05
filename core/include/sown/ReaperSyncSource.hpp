@@ -60,6 +60,10 @@ public:
     SyncState getState() const override;
     std::vector<Cue> markerCues() const;
     std::string projectName() const;
+    double tempo() const;
+    TimeNs projectLengthNs() const;
+    TimeNs editCursorNs() const;
+    std::uint32_t projectRevision() const;
     double packetAgeMs() const;
     PrecisionStats precisionStats() const;
     std::uint64_t packetsReceived() const { return packetsReceived_.load(); }
@@ -123,6 +127,9 @@ private:
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
+    double tempo_{120.0};
+    TimeNs projectLengthNs_{0}, editCursorNs_{0};
+    std::uint32_t projectRevision_{0};
     std::atomic<std::uint64_t> packetsReceived_{0};
     std::ofstream phaseLog_;
     std::string phaseLogPath_;
