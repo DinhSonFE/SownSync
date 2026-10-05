@@ -182,68 +182,52 @@ class _WorkspaceState extends State<Workspace>{
  Widget _liveTimeline({bool compact=false}) {
    const windowNs=20000000000;
    final from=pos-windowNs, to=pos+windowNs;
-   final visible=cueList.where((q)=>q.timeNs>=from&&q.timeNs<=to).toList()
-     ..sort((a,b)=>a.timeNs.compareTo(b.timeNs));
+   final visible=cueList.where((q)=>q.timeNs>=from&&q.timeNs<=to).toList()..sort((a,b)=>a.timeNs.compareTo(b.timeNs));
    return Container(
-     padding:EdgeInsets.all(compact?12:16),decoration:_box(),
+     padding:EdgeInsets.fromLTRB(compact?12:16,compact?10:14,compact?12:16,compact?10:12),decoration:_box(),
      child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
        Row(children:[
-         _label('LIVE TIMELINE'),
-         const SizedBox(width:10),
-         Container(width:7,height:7,decoration:const BoxDecoration(color:Color(0xFF35D27F),shape:BoxShape.circle)),
-         const SizedBox(width:5),
-         const Text('WAVEFORM',style:TextStyle(color:Colors.white38,fontSize:9,fontWeight:FontWeight.w800,letterSpacing:1)),
-         const Spacer(),
-         const Text('−20s          NOW          +20s',style:TextStyle(color:Colors.white38,fontSize:10,fontWeight:FontWeight.w700))
+         _label('LIVE TIMELINE'),const SizedBox(width:10),
+         Container(width:6,height:6,decoration:const BoxDecoration(color:Color(0xFF35D27F),shape:BoxShape.circle)),
+         const SizedBox(width:5),const Text('REAPER WAVEFORM',style:TextStyle(color:Colors.white38,fontSize:8,fontWeight:FontWeight.w800,letterSpacing:1)),
+         const Spacer(),const Text('−20s          NOW          +20s',style:TextStyle(color:Colors.white38,fontSize:9,fontWeight:FontWeight.w700))
        ]),
-       const SizedBox(height:8),
+       const SizedBox(height:7),
        Expanded(child:LayoutBuilder(builder:(context,b){
          final w=b.maxWidth,h=b.maxHeight;
-         final markerTop=compact?8.0:10.0;
-         final waveformTop=h*(compact ? .32 : .28);
-         final waveformBottom=h-26;
+         final waveTop=compact?42.0:48.0,waveBottom=h-25;
+         final lanes=<double>[-1,-1,-1];
+         final placements=<CueView,int>{};
+         for(final q in visible){
+           final x=((q.timeNs-from)/(to-from))*w;
+           var lane=0;double best=double.infinity;
+           for(var i=0;i<lanes.length;i++){if(x-lanes[i]>best)continue;if(x>lanes[i]){lane=i;best=x-lanes[i];}}
+           if(!lanes.any((e)=>x>e)){lane=lanes.indexOf(lanes.reduce((x,y)=>x<y?x:y));}
+           placements[q]=lane;lanes[lane]=x+(compact?100:130);
+         }
          return Stack(clipBehavior:Clip.hardEdge,children:[
-           Positioned.fill(child:CustomPaint(painter:_LiveWaveformPainter(positionNs:pos,peaks:wavePeaks))),
-           ...List.generate(9,(i)=>Positioned(left:(w-1)*i/8,top:waveformTop,bottom:22,child:Container(width:1,color:Colors.white.withValues(alpha:.045)))),
-           ...visible.asMap().entries.map((entry){
-             final q=entry.value;
+           Positioned(left:0,right:0,top:waveTop,bottom:20,child:ClipRRect(borderRadius:BorderRadius.circular(6),child:CustomPaint(painter:_LiveWaveformPainter(positionNs:pos,peaks:wavePeaks)))),
+           ...List.generate(9,(i)=>Positioned(left:(w-1)*i/8,top:waveTop,bottom:20,child:Container(width:1,color:Colors.white.withValues(alpha:.04)))),
+           ...visible.map((q){
              final x=((q.timeNs-from)/(to-from))*w;
-             final isPast=q.timeNs<pos, isNext=q.id==next?.id;
+             final isPast=q.timeNs<pos,isNext=q.id==next?.id;
              final accent=isNext?kRed:_reaperColor(q.color,q.department);
-             final lineColor=isPast?accent.withValues(alpha:.28):accent.withValues(alpha:.78);
-             final lane=entry.key%3;
-             final cardTop=markerTop+lane*(compact?38:44);
-             final cardW=compact?128.0:170.0;
-             final left=(x-cardW*.12).clamp(2.0,w-cardW-2).toDouble();
+             final lane=placements[q]??0;
+             final y=lane*(compact?18.0:20.0);
+             final title=q.name.isEmpty?'Cue ${q.id}':q.name;
              return Stack(children:[
-               Positioned(left:x.clamp(1.0,w-2).toDouble(),top:cardTop+26,bottom:22,child:Container(width:isNext?3:2,color:lineColor)),
-               Positioned(left:left,top:cardTop,child:Container(
-                 width:cardW,
-                 padding:EdgeInsets.symmetric(horizontal:compact?7:9,vertical:compact?5:6),
-                 decoration:BoxDecoration(
-                   color:isNext?kRed.withValues(alpha:.15):const Color(0xE6171C25),
-                   borderRadius:BorderRadius.circular(6),
-                   border:Border.all(color:isNext?kRed.withValues(alpha:.8):accent.withValues(alpha:.38)),
-                 ),
-                 child:Row(children:[
-                   Container(width:3,height:compact?25:30,decoration:BoxDecoration(color:accent,borderRadius:BorderRadius.circular(2))),
-                   const SizedBox(width:7),
-                   Expanded(child:Column(crossAxisAlignment:CrossAxisAlignment.start,children:[
-                     Text(q.name.isEmpty?'Cue '+q.id.toString():q.name,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:isPast?Colors.white54:Colors.white,fontSize:compact?10:12,fontWeight:isNext?FontWeight.w900:FontWeight.w800)),
-                     const SizedBox(height:2),
-                     Text('#${q.id}  ${q.department.isEmpty?'CUE':q.department}  ${clock(q.timeNs,millis:false)}',maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:isNext?kRed:Colors.white38,fontSize:compact?8:9,fontWeight:FontWeight.w700,fontFeatures:const [FontFeature.tabularFigures()])),
-                   ])),
-                 ]),
+               Positioned(left:x.clamp(1.0,w-2).toDouble(),top:y+16,bottom:20,child:Container(width:isNext?2.5:1.5,color:accent.withValues(alpha:isPast?.22:.72))),
+               Positioned(left:(x+5).clamp(3.0,w-(compact?105:145)).toDouble(),top:y,child:Container(
+                 constraints:BoxConstraints(maxWidth:compact?100:140),
+                 padding:const EdgeInsets.symmetric(horizontal:6,vertical:3),
+                 decoration:BoxDecoration(color:isNext?kRed.withValues(alpha:.16):const Color(0xE611151C),borderRadius:BorderRadius.circular(4),border:Border.all(color:isNext?kRed.withValues(alpha:.7):accent.withValues(alpha:.22))),
+                 child:Text(title,maxLines:1,overflow:TextOverflow.ellipsis,style:TextStyle(color:isPast?Colors.white38:Colors.white.withValues(alpha:.88),fontSize:compact?8:9,fontWeight:isNext?FontWeight.w900:FontWeight.w700)),
                )),
              ]);
            }),
-           Positioned(left:w*.5-1.5,top:0,bottom:20,child:Container(width:3,color:kRed)),
+           Positioned(left:w*.5-1,top:0,bottom:18,child:Container(width:2,color:kRed)),
            Positioned(left:w*.5-5,top:0,child:CustomPaint(size:const Size(10,8),painter:_PlayheadTrianglePainter())),
-           Positioned(left:w*.5-48,bottom:0,child:Container(
-             width:96,padding:const EdgeInsets.symmetric(vertical:3),
-             decoration:BoxDecoration(color:const Color(0xFF161A22),borderRadius:BorderRadius.circular(4),border:Border.all(color:kRed.withValues(alpha:.55))),
-             child:Text(clock(pos,millis:false),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white,fontSize:10,fontWeight:FontWeight.w900,fontFeatures:[FontFeature.tabularFigures()]))
-           )),
+           Positioned(left:w*.5-45,bottom:0,child:Container(width:90,padding:const EdgeInsets.symmetric(vertical:3),decoration:BoxDecoration(color:const Color(0xFF161A22),borderRadius:BorderRadius.circular(4),border:Border.all(color:kRed.withValues(alpha:.45))),child:Text(clock(pos,millis:false),textAlign:TextAlign.center,style:const TextStyle(color:Colors.white,fontSize:9,fontWeight:FontWeight.w900,fontFeatures:[FontFeature.tabularFigures()])))),
          ]);
        })),
      ]),
