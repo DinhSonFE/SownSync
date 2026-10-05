@@ -114,6 +114,10 @@ private:
     mutable SyncHealth previousHealth_{SyncHealth::NoSignal};
     mutable Clock::time_point holdoverStarted_{Clock::time_point::min()};
     bool recoveringFromGap_{false};
+    // STOP position debounce: freeze immediately on STOP and only accept a new
+    // stopped position after REAPER reports the same value for several packets.
+    TimeNs stoppedCandidatePosition_{0};
+    int stoppedCandidatePackets_{0};
     std::vector<Cue> markers_, markerBuild_;
     std::uint32_t markerGeneration_{0};
     std::string projectName_;
