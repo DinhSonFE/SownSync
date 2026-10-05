@@ -32,5 +32,5 @@ int sown_get_cue_count(void){std::lock_guard<std::mutex>lk(g);refresh();return (
 int sown_is_reaper_connected(void){std::lock_guard<std::mutex>lk(g);return reaper&&reaper->isConnected();}
 const char* sown_get_project_name(void){std::lock_guard<std::mutex>lk(g);projectCache=reaper?reaper->projectName():"";return projectCache.c_str();}
 const char* sown_get_active_source(void){std::lock_guard<std::mutex>lk(g);sourceCache=manager?manager->activeId():"";return sourceCache.c_str();}
-const char* sown_version(void){return "0.4.1";}
+const char* sown_version(void){return "0.5.0";}
 }
