@@ -215,7 +215,15 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
      if(phaseLearningWindow_.size()>32)phaseLearningWindow_.erase(phaseLearningWindow_.begin());
      phaseLockSamples_=(int)phaseLearningWindow_.size();
 
-     if(phaseLearningWindow_.size()>=8){
+     // V0.2.7 Fast Phase Acquisition.
+     // Acquisition and tracking use different confidence rules. Real REAPER
+     // captures show a phase MAD around 4 ms, so the old fixed 3 ms gate could
+     // remain ACQUIRING indefinitely even when the source was healthy.
+     constexpr std::size_t kAcquireSamples=4;
+     constexpr double kAcquireMadMs=8.0;
+     constexpr double kAcquireCandidateStepMs=12.0;
+     constexpr int kAcquireStableWindows=2;
+     if(phaseLearningWindow_.size()>=kAcquireSamples){
       auto w=phaseLearningWindow_;
       std::sort(w.begin(),w.end());
       const double candidate=w[w.size()/2];
@@ -224,17 +232,26 @@ void ReaperSyncSource::updatePrecision(std::uint64_t seq,std::uint64_t qpc,std::
       std::sort(dev.begin(),dev.end());
       phaseMadMs_=dev[dev.size()/2];
 
-      // Windowing should reduce REAPER quantisation substantially. Require a
-      // repeatable phase distribution before declaring lock.
-      if(phaseMadMs_<3.0){
-       phaseState_=PhaseAcquisitionState::Stable;
-       phaseBaselineMs_=candidate;
-       ++phaseStableWindows_;
-      }else phaseStableWindows_=0;
+      const bool baselineSeeded=phaseStableWindows_>0;
+      const double candidateStep=baselineSeeded?std::abs(candidate-phaseBaselineMs_):0.0;
+      const bool distributionGood=phaseMadMs_<=kAcquireMadMs;
+      const bool candidateGood=!baselineSeeded||candidateStep<=kAcquireCandidateStepMs;
 
-      if(phaseStableWindows_>=3){
+      if(distributionGood&&candidateGood){
+       phaseState_=PhaseAcquisitionState::Stable;
+       // During acquisition follow the robust median quickly. Once locked the
+       // existing slow tracking rule below takes over.
+       phaseBaselineMs_=baselineSeeded?(phaseBaselineMs_*0.35+candidate*0.65):candidate;
+       ++phaseStableWindows_;
+      }else{
+       phaseState_=PhaseAcquisitionState::Acquiring;
+       phaseStableWindows_=0;
+      }
+
+      if(phaseStableWindows_>=kAcquireStableWindows){
        phaseLocked_=true;
        phaseState_=PhaseAcquisitionState::Locked;
+       phaseBaselineMs_=candidate;
        residualSquareEma_=0.0;
        precision_.errorRmsMs=0.0;
        precision_.errorPeakMs=0.0;
